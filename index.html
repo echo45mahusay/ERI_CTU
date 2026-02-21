@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ERI - Earthquake Recording Instrument</title>
+    <title>ERI - Multi-Node Earthquake Monitoring</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.0.1/mqttws31.min.js"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -21,17 +21,11 @@
             --accent-green: #10b981;
             --accent-yellow: #fbbf24;
             --accent-red: #ef4444;
+            --accent-purple: #a855f7;
             --border-color: #2d3748;
-            --safe-green: #10b981;
-            --warning-yellow: #fbbf24;
-            --unsafe-red: #ef4444;
         }
         
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
         
         body {
             font-family: 'JetBrains Mono', monospace;
@@ -51,7 +45,7 @@
         }
         
         .nav-container {
-            max-width: 1600px;
+            max-width: 1800px;
             margin: 0 auto;
             display: flex;
             align-items: center;
@@ -98,32 +92,15 @@
             font-family: 'JetBrains Mono', monospace;
         }
         
-        .btn:hover {
-            background: #0891b2;
-            transform: translateY(-2px);
-        }
+        .btn:hover { background: #0891b2; transform: translateY(-2px); }
+        .btn-secondary { background: var(--bg-card); border: 1px solid var(--border-color); }
+        .btn-secondary:hover { background: var(--bg-secondary); border-color: var(--accent-cyan); }
+        .btn-success { background: var(--accent-green); }
+        .btn-success:hover { background: #059669; }
         
-        .btn-secondary {
-            background: var(--bg-card);
-            border: 1px solid var(--border-color);
-        }
-        
-        .btn-secondary:hover {
-            background: var(--bg-secondary);
-            border-color: var(--accent-cyan);
-        }
-        
-        .btn-success {
-            background: var(--safe-green);
-        }
-        
-        .btn-success:hover {
-            background: #059669;
-        }
-        
-        /* Main Container */
+        /* Container */
         .container {
-            max-width: 1600px;
+            max-width: 1800px;
             margin: 0 auto;
             padding: 2rem;
         }
@@ -145,13 +122,73 @@
         .page-subtitle {
             color: var(--text-secondary);
             font-size: 0.875rem;
-            font-weight: 400;
+        }
+        
+        /* Node Selector */
+        .node-selector {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+        
+        .node-tab {
+            padding: 1rem 2rem;
+            background: var(--bg-card);
+            border: 2px solid var(--border-color);
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s;
+            flex: 1;
+            text-align: center;
+        }
+        
+        .node-tab:hover {
+            border-color: var(--accent-cyan);
+            transform: translateY(-2px);
+        }
+        
+        .node-tab.active {
+            border-color: var(--accent-cyan);
+            background: rgba(6, 182, 212, 0.1);
+        }
+        
+        .node-tab.node1.active { border-color: var(--accent-cyan); }
+        .node-tab.node2.active { border-color: var(--accent-purple); }
+        
+        .node-tab-title {
+            font-size: 1.25rem;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+        }
+        
+        .node-tab-subtitle {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+        }
+        
+        .node-tab-status {
+            display: inline-block;
+            padding: 0.25rem 0.75rem;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            margin-top: 0.5rem;
+        }
+        
+        .node-tab-status.online {
+            background: rgba(16, 185, 129, 0.2);
+            color: var(--accent-green);
+        }
+        
+        .node-tab-status.offline {
+            background: rgba(239, 68, 68, 0.2);
+            color: var(--accent-red);
         }
         
         /* Stats Grid */
         .stats-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
             gap: 1.5rem;
             margin-bottom: 2rem;
         }
@@ -190,6 +227,7 @@
         .stat-icon.green { background: rgba(16, 185, 129, 0.1); color: var(--accent-green); }
         .stat-icon.yellow { background: rgba(251, 191, 36, 0.1); color: var(--accent-yellow); }
         .stat-icon.red { background: rgba(239, 68, 68, 0.1); color: var(--accent-red); }
+        .stat-icon.purple { background: rgba(168, 85, 247, 0.1); color: var(--accent-purple); }
         
         .stat-label {
             font-size: 0.75rem;
@@ -212,11 +250,6 @@
             font-weight: 400;
         }
         
-        /* System Status Special */
-        .stat-card.status .stat-value {
-            font-size: 2rem;
-        }
-        
         /* Threshold Badge */
         .threshold-badge {
             display: inline-block;
@@ -229,32 +262,26 @@
         
         .threshold-safe {
             background: rgba(16, 185, 129, 0.2);
-            color: var(--safe-green);
+            color: var(--accent-green);
         }
         
         .threshold-warning {
             background: rgba(251, 191, 36, 0.2);
-            color: var(--warning-yellow);
+            color: var(--accent-yellow);
         }
         
         .threshold-unsafe {
             background: rgba(239, 68, 68, 0.2);
-            color: var(--unsafe-red);
+            color: var(--accent-red);
         }
         
-        /* Main Content Grid */
-        .content-grid {
-            display: grid;
-            grid-template-columns: 2fr 1fr;
-            gap: 1.5rem;
-            margin-bottom: 1.5rem;
-        }
-        
+        /* Chart Card */
         .chart-card {
             background: var(--bg-card);
             border: 1px solid var(--border-color);
             border-radius: 12px;
             padding: 1.5rem;
+            margin-bottom: 1.5rem;
         }
         
         .chart-header {
@@ -278,6 +305,48 @@
         .chart-canvas {
             width: 100% !important;
             height: 300px !important;
+        }
+        
+        /* Comparison View */
+        .comparison-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1.5rem;
+            margin-bottom: 1.5rem;
+        }
+        
+        /* Alert Banner */
+        .alert-banner {
+            background: var(--bg-card);
+            border: 2px solid var(--accent-red);
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin-bottom: 2rem;
+            display: none;
+        }
+        
+        .alert-banner.active {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { border-color: var(--accent-red); }
+            50% { border-color: var(--accent-yellow); }
+        }
+        
+        .alert-icon { font-size: 2rem; }
+        
+        .alert-content h3 {
+            font-size: 1.25rem;
+            margin-bottom: 0.5rem;
+        }
+        
+        .alert-content p {
+            color: var(--text-secondary);
+            font-size: 0.875rem;
         }
         
         /* Event Log */
@@ -339,17 +408,17 @@
         
         .status-badge.status-safe {
             background: rgba(16, 185, 129, 0.2);
-            color: var(--safe-green);
+            color: var(--accent-green);
         }
         
         .status-badge.status-warning {
             background: rgba(251, 191, 36, 0.2);
-            color: var(--warning-yellow);
+            color: var(--accent-yellow);
         }
         
         .status-badge.status-unsafe {
             background: rgba(239, 68, 68, 0.2);
-            color: var(--unsafe-red);
+            color: var(--accent-red);
         }
         
         .status-dot {
@@ -359,78 +428,21 @@
             background: currentColor;
         }
         
-        /* STA/LTA Card */
-        .stalta-card {
-            background: var(--bg-card);
-            border: 1px solid var(--border-color);
-            border-radius: 12px;
-            padding: 1.5rem;
-        }
-        
-        .stalta-value {
-            font-size: 3rem;
-            font-weight: 700;
-            line-height: 1;
-            margin: 1rem 0;
-        }
-        
-        .stalta-info {
-            display: flex;
-            justify-content: space-between;
-            margin-top: 1rem;
-            padding-top: 1rem;
-            border-top: 1px solid var(--border-color);
-        }
-        
-        .stalta-info-item {
-            text-align: center;
-        }
-        
-        .stalta-info-label {
+        .node-badge {
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
             font-size: 0.75rem;
-            color: var(--text-muted);
-            margin-bottom: 0.25rem;
-        }
-        
-        .stalta-info-value {
-            font-size: 1.25rem;
             font-weight: 600;
         }
         
-        /* Alert Banner */
-        .alert-banner {
-            background: var(--bg-card);
-            border: 2px solid var(--accent-red);
-            border-radius: 12px;
-            padding: 1.5rem;
-            margin-bottom: 2rem;
-            display: none;
+        .node-badge.node1 {
+            background: rgba(6, 182, 212, 0.2);
+            color: var(--accent-cyan);
         }
         
-        .alert-banner.active {
-            display: flex;
-            align-items: center;
-            gap: 1rem;
-            animation: pulse 2s infinite;
-        }
-        
-        @keyframes pulse {
-            0%, 100% { border-color: var(--accent-red); }
-            50% { border-color: var(--accent-yellow); }
-        }
-        
-        .alert-icon {
-            font-size: 2rem;
-        }
-        
-        .alert-content h3 {
-            font-size: 1.25rem;
-            margin-bottom: 0.5rem;
-        }
-        
-        .alert-content p {
-            color: var(--text-secondary);
-            font-size: 0.875rem;
+        .node-badge.node2 {
+            background: rgba(168, 85, 247, 0.2);
+            color: var(--accent-purple);
         }
     </style>
 </head>
@@ -440,7 +452,7 @@
         <div class="nav-container">
             <div class="nav-brand">
                 <div class="nav-logo"></div>
-                <span class="nav-title">ERI - Earthquake Recording Instrument</span>
+                <span class="nav-title">ERI - Multi-Node Earthquake Monitoring System</span>
             </div>
             <div class="nav-right">
                 <button class="btn btn-secondary" onclick="exportToCSV()">📊 Export CSV</button>
@@ -449,14 +461,13 @@
         </div>
     </nav>
 
-    <!-- Main Container -->
     <div class="container">
         <!-- Alert Banner -->
         <div class="alert-banner" id="alertBanner">
             <div class="alert-icon">🚨</div>
             <div class="alert-content">
                 <h3>EARTHQUAKE DETECTED!</h3>
-                <p id="alertMessage">STA/LTA threshold exceeded - Seismic event in progress</p>
+                <p id="alertMessage">STA/LTA threshold exceeded</p>
             </div>
         </div>
 
@@ -464,125 +475,59 @@
         <div class="page-header">
             <div>
                 <h1 class="page-title">Real-Time Seismic Monitoring</h1>
-                <p class="page-subtitle">Live earthquake detection with STA/LTA algorithm • Last update: <span id="lastUpdate">--:--:--</span></p>
+                <p class="page-subtitle">Multi-node earthquake detection • Last update: <span id="lastUpdate">--:--:--</span></p>
+            </div>
+        </div>
+        
+        <!-- Node Selector -->
+        <div class="node-selector">
+            <div class="node-tab node1 active" onclick="switchNode('node1')">
+                <div class="node-tab-title">🏢 Ground Floor</div>
+                <div class="node-tab-subtitle">CTU Main Building - Ground Level</div>
+                <div class="node-tab-status offline" id="node1Status">Offline</div>
+            </div>
+            <div class="node-tab node2" onclick="switchNode('node2')">
+                <div class="node-tab-title">🏗️ Top Floor</div>
+                <div class="node-tab-subtitle">CTU Main Building - Top Level</div>
+                <div class="node-tab-status offline" id="node2Status">Offline</div>
+            </div>
+            <div class="node-tab" onclick="switchNode('comparison')">
+                <div class="node-tab-title">📊 Comparison View</div>
+                <div class="node-tab-subtitle">Compare Both Nodes</div>
+                <div class="node-tab-status online">Active</div>
             </div>
         </div>
         
         <!-- Stats Grid -->
-        <div class="stats-grid">
-            <div class="stat-card status">
-                <div class="stat-header">
-                    <div class="stat-icon green">🛡️</div>
-                    <span class="stat-label">System Status</span>
-                </div>
-                <div class="stat-value" id="systemStatus">SAFE</div>
-                <div class="threshold-badge threshold-safe" id="thresholdBadge">Below Threshold</div>
-            </div>
-            
-            <div class="stat-card">
-                <div class="stat-header">
-                    <div class="stat-icon cyan">📊</div>
-                    <span class="stat-label">Current Magnitude</span>
-                </div>
-                <div class="stat-value" id="currentMagnitude">0.0</div>
-                <span class="stat-unit">m/s²</span>
-            </div>
-            
-            <div class="stat-card">
-                <div class="stat-header">
-                    <div class="stat-icon red">⚠️</div>
-                    <span class="stat-label">Max Magnitude</span>
-                </div>
-                <div class="stat-value" id="maxMagnitude">0.0</div>
-                <span class="stat-unit">m/s²</span>
-            </div>
-            
-            <div class="stat-card">
-                <div class="stat-header">
-                    <div class="stat-icon yellow">📈</div>
-                    <span class="stat-label">STA/LTA Ratio</span>
-                </div>
-                <div class="stat-value" id="staltaRatio">0.00</div>
-                <span class="stat-unit">Threshold: 3.0</span>
-            </div>
-            
-            <div class="stat-card">
-                <div class="stat-header">
-                    <div class="stat-icon green">📡</div>
-                    <span class="stat-label">Connection</span>
-                </div>
-                <div class="stat-value" id="onlineStatus" style="font-size: 1.5rem;">Offline</div>
-            </div>
-            
-            <div class="stat-card">
-                <div class="stat-header">
-                    <div class="stat-icon cyan">🔢</div>
-                    <span class="stat-label">Data Points</span>
-                </div>
-                <div class="stat-value" id="totalEvents">0</div>
-                <span class="stat-unit">recorded</span>
-            </div>
+        <div class="stats-grid" id="statsGrid">
+            <!-- Stats will be dynamically populated -->
         </div>
         
-        <!-- Main Charts Grid -->
-        <div class="content-grid">
-            <div>
-                <!-- STA/LTA Chart -->
-                <div class="chart-card" style="margin-bottom: 1.5rem;">
-                    <div class="chart-header">
-                        <div>
-                            <div class="chart-title">STA/LTA Earthquake Detection</div>
-                            <div class="chart-subtitle">Short-Term Average / Long-Term Average Ratio</div>
-                        </div>
-                    </div>
-                    <canvas id="staltaChart" class="chart-canvas"></canvas>
-                </div>
-                
-                <!-- 3-Axis Acceleration -->
-                <div class="chart-card" style="margin-bottom: 1.5rem;">
-                    <div class="chart-header">
-                        <div>
-                            <div class="chart-title">3-Axis Acceleration</div>
-                            <div class="chart-subtitle">X, Y, Z axes in m/s²</div>
-                        </div>
-                    </div>
-                    <canvas id="accelChart" class="chart-canvas"></canvas>
-                </div>
-                
-                <!-- Displacement Chart -->
-                <div class="chart-card">
-                    <div class="chart-header">
-                        <div>
-                            <div class="chart-title">Structural Displacement</div>
-                            <div class="chart-subtitle">Ground vs Top Floor</div>
-                        </div>
-                    </div>
-                    <canvas id="displacementChart" class="chart-canvas"></canvas>
-                </div>
+        <!-- Charts Section -->
+        <div id="chartsSection">
+            <!-- Charts will be dynamically populated based on view -->
+        </div>
+        
+        <!-- Event Log -->
+        <div class="event-log">
+            <div class="log-header">
+                <div class="chart-title">Recent Seismic Events</div>
+                <div class="chart-subtitle" id="statusInfo">0 Events today | Max 0.0 m/s²</div>
             </div>
-            
-            <div>
-                <!-- Event Log -->
-                <div class="event-log">
-                    <div class="log-header">
-                        <div class="chart-title">Recent Events</div>
-                        <div class="chart-subtitle" id="statusInfo">0 Events today | Max 0.0 m/s² | Avg 0.00 m/s² depth</div>
-                    </div>
-                    <table class="log-table">
-                        <thead>
-                            <tr>
-                                <th>Magnitude</th>
-                                <th>Time</th>
-                                <th>Location</th>
-                                <th>Status</th>
-                            </tr>
-                        </thead>
-                        <tbody id="eventTableBody">
-                            <!-- Events will be added dynamically -->
-                        </tbody>
-                    </table>
-                </div>
-            </div>
+            <table class="log-table">
+                <thead>
+                    <tr>
+                        <th>Node</th>
+                        <th>Magnitude</th>
+                        <th>Time</th>
+                        <th>Location</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody id="eventTableBody">
+                    <!-- Events will be added dynamically -->
+                </tbody>
+            </table>
         </div>
     </div>
 
@@ -592,23 +537,45 @@
         const MQTT_PORT = 8884;
         const MQTT_USERNAME = 'ERI-Cluster';
         const MQTT_PASSWORD = 'Abc12345';
-        const TOPIC_ACCELERATION = 'eri/earthquake/acceleration';
-        const TOPIC_STALTA = 'eri/earthquake/stalta';
-        const TOPIC_ALERT = 'eri/earthquake/alert';
         
-        // Safety Thresholds (in m/s²)
-        const THRESHOLD_SAFE = 10.5;      // Below this is SAFE
-        const THRESHOLD_WARNING = 11.5;   // Between 10.5-11.5 is WARNING
-        // Above 11.5 is UNSAFE
+        // Safety Thresholds
+        const THRESHOLD_SAFE = 10.5;
+        const THRESHOLD_WARNING = 11.5;
         
+        // Global State
         let client;
+        let currentView = 'node1';
         let eventCount = 0;
-        let dataPoints = 0;
-        let maxMag = 0;
-        let totalAccelSum = 0;
-        let currentMagnitude = 0;
-        let currentSTALTA = 0;
-        let earthquakeActive = false;
+        
+        // Node Data Storage
+        const nodes = {
+            node1: {
+                id: 'node1',
+                name: 'Ground Floor',
+                location: 'CTU Main Building - Ground Level',
+                online: false,
+                data: [],
+                currentMagnitude: 0,
+                maxMagnitude: 0,
+                stalta: 0,
+                earthquakeDetected: false,
+                dataPoints: 0,
+                totalSum: 0
+            },
+            node2: {
+                id: 'node2',
+                name: 'Top Floor',
+                location: 'CTU Main Building - Top Level',
+                online: false,
+                data: [],
+                currentMagnitude: 0,
+                maxMagnitude: 0,
+                stalta: 0,
+                earthquakeDetected: false,
+                dataPoints: 0,
+                totalSum: 0
+            }
+        };
         
         // CSV Data Storage
         let csvData = [];
@@ -616,20 +583,25 @@
         // Chart Colors
         const chartColors = {
             cyan: '#06b6d4',
+            purple: '#a855f7',
             green: '#10b981',
             yellow: '#fbbf24',
             red: '#ef4444',
             text: '#9ca3af'
         };
         
+        // Charts
+        let charts = {
+            node1: {},
+            node2: {},
+            comparison: {}
+        };
+        
         // Common Chart Options
         const commonOptions = {
             responsive: true,
             maintainAspectRatio: false,
-            interaction: {
-                intersect: false,
-                mode: 'index'
-            },
+            interaction: { intersect: false, mode: 'index' },
             plugins: {
                 legend: {
                     display: true,
@@ -653,136 +625,15 @@
             animation: false
         };
         
-        // STA/LTA Chart
-        const staltaChart = new Chart(document.getElementById('staltaChart'), {
-            type: 'line',
-            data: {
-                labels: [],
-                datasets: [
-                    {
-                        label: 'STA/LTA Ratio',
-                        data: [],
-                        borderColor: chartColors.yellow,
-                        backgroundColor: 'rgba(251, 191, 36, 0.2)',
-                        borderWidth: 2,
-                        tension: 0.4,
-                        fill: true
-                    },
-                    {
-                        label: 'Threshold (3.0)',
-                        data: [],
-                        borderColor: chartColors.red,
-                        backgroundColor: 'transparent',
-                        borderWidth: 2,
-                        borderDash: [5, 5],
-                        pointRadius: 0,
-                        fill: false
-                    }
-                ]
-            },
-            options: {
-                ...commonOptions,
-                scales: {
-                    ...commonOptions.scales,
-                    y: {
-                        ...commonOptions.scales.y,
-                        beginAtZero: true,
-                        title: { display: true, text: 'STA/LTA Ratio', color: chartColors.text }
-                    }
-                }
-            }
-        });
-        
-        // 3-Axis Acceleration Chart
-        const accelChart = new Chart(document.getElementById('accelChart'), {
-            type: 'line',
-            data: {
-                labels: [],
-                datasets: [
-                    {
-                        label: 'X-Axis',
-                        data: [],
-                        borderColor: chartColors.red,
-                        backgroundColor: 'rgba(239, 68, 68, 0.2)',
-                        borderWidth: 2,
-                        tension: 0.4,
-                        fill: false
-                    },
-                    {
-                        label: 'Y-Axis',
-                        data: [],
-                        borderColor: chartColors.green,
-                        backgroundColor: 'rgba(16, 185, 129, 0.2)',
-                        borderWidth: 2,
-                        tension: 0.4,
-                        fill: false
-                    },
-                    {
-                        label: 'Z-Axis',
-                        data: [],
-                        borderColor: chartColors.cyan,
-                        backgroundColor: 'rgba(6, 182, 212, 0.2)',
-                        borderWidth: 2,
-                        tension: 0.4,
-                        fill: false
-                    }
-                ]
-            },
-            options: {
-                ...commonOptions,
-                scales: {
-                    ...commonOptions.scales,
-                    y: {
-                        ...commonOptions.scales.y,
-                        title: { display: true, text: 'Acceleration (m/s²)', color: chartColors.text }
-                    }
-                }
-            }
-        });
-        
-        // Displacement Chart with fixed scaling
-        const displacementChart = new Chart(document.getElementById('displacementChart'), {
-            type: 'line',
-            data: {
-                labels: [],
-                datasets: [
-                    {
-                        label: 'Ground Floor',
-                        data: [],
-                        borderColor: chartColors.cyan,
-                        backgroundColor: 'rgba(6, 182, 212, 0.2)',
-                        borderWidth: 2,
-                        tension: 0.4,
-                        fill: true
-                    },
-                    {
-                        label: 'Top Floor',
-                        data: [],
-                        borderColor: chartColors.yellow,
-                        backgroundColor: 'rgba(251, 191, 36, 0.2)',
-                        borderWidth: 2,
-                        tension: 0.4,
-                        fill: true
-                    }
-                ]
-            },
-            options: {
-                ...commonOptions,
-                scales: {
-                    ...commonOptions.scales,
-                    y: {
-                        ...commonOptions.scales.y,
-                        title: { display: true, text: 'Displacement (mm)', color: chartColors.text },
-                        min: -50,  // Fixed minimum
-                        max: 200   // Fixed maximum to prevent scaling issues
-                    }
-                }
-            }
-        });
+        // Initialize
+        function init() {
+            switchNode('node1');
+            setTimeout(connectMQTT, 500);
+        }
         
         // MQTT Functions
         function connectMQTT() {
-            const clientId = 'ERI_Dashboard_' + Math.random().toString(16).substr(2, 8);
+            const clientId = 'ERI_MultiNode_' + Math.random().toString(16).substr(2, 8);
             client = new Paho.MQTT.Client(MQTT_BROKER, MQTT_PORT, '/mqtt', clientId);
             
             client.onConnectionLost = onConnectionLost;
@@ -796,36 +647,33 @@
                 useSSL: true
             });
             
-            document.getElementById('onlineStatus').textContent = 'Connecting...';
             document.getElementById('connectBtn').disabled = true;
+            document.getElementById('connectBtn').textContent = '⏳ Connecting...';
         }
         
         function onConnect() {
             console.log('Connected to HiveMQ Cloud');
-            document.getElementById('onlineStatus').textContent = 'Online';
-            document.getElementById('onlineStatus').style.color = chartColors.green;
             document.getElementById('connectBtn').textContent = '✓ Connected';
             document.getElementById('connectBtn').classList.remove('btn-success');
             document.getElementById('connectBtn').classList.add('btn-secondary');
             
-            client.subscribe(TOPIC_ACCELERATION);
-            client.subscribe(TOPIC_STALTA);
-            client.subscribe(TOPIC_ALERT);
+            // Subscribe to all node topics
+            client.subscribe('eri/earthquake/+/acceleration');
+            client.subscribe('eri/earthquake/+/stalta');
+            client.subscribe('eri/earthquake/+/alert');
+            client.subscribe('eri/earthquake/+/status');
         }
         
         function onFailure(error) {
             console.error('Connection failed:', error);
-            document.getElementById('onlineStatus').textContent = 'Failed';
-            document.getElementById('onlineStatus').style.color = chartColors.red;
             document.getElementById('connectBtn').disabled = false;
+            document.getElementById('connectBtn').textContent = '🔌 Connect';
         }
         
         function onConnectionLost(responseObject) {
             console.log('Connection lost:', responseObject.errorMessage);
-            document.getElementById('onlineStatus').textContent = 'Disconnected';
-            document.getElementById('onlineStatus').style.color = chartColors.red;
             document.getElementById('connectBtn').disabled = false;
-            document.getElementById('connectBtn').textContent = '🔌 Connect';
+            document.getElementById('connectBtn').textContent = '🔌 Reconnect';
             document.getElementById('connectBtn').classList.add('btn-success');
             document.getElementById('connectBtn').classList.remove('btn-secondary');
         }
@@ -833,126 +681,93 @@
         function onMessageArrived(message) {
             const topic = message.destinationName;
             const payload = JSON.parse(message.payloadString);
+            const parts = topic.split('/');
+            const nodeId = parts[2]; // eri/earthquake/[nodeId]/[type]
+            const type = parts[3];
             
-            if (topic === TOPIC_ACCELERATION) {
-                updateAccelerationData(payload);
-            } else if (topic === TOPIC_STALTA) {
-                updateSTALTAData(payload);
-            } else if (topic === TOPIC_ALERT) {
-                handleEarthquakeAlert(payload);
+            if (type === 'acceleration') {
+                updateAccelerationData(nodeId, payload);
+            } else if (type === 'stalta') {
+                updateSTALTAData(nodeId, payload);
+            } else if (type === 'alert') {
+                handleAlert(nodeId, payload);
+            } else if (type === 'status' && payload.status === 'online') {
+                nodes[nodeId].online = true;
+                updateNodeStatus(nodeId);
             }
             
             document.getElementById('lastUpdate').textContent = new Date().toLocaleTimeString();
         }
         
-        function updateAccelerationData(data) {
+        function updateNodeStatus(nodeId) {
+            const statusEl = document.getElementById(`${nodeId}Status`);
+            if (nodes[nodeId].online) {
+                statusEl.textContent = 'Online';
+                statusEl.classList.remove('offline');
+                statusEl.classList.add('online');
+            }
+        }
+        
+        function updateAccelerationData(nodeId, data) {
+            const node = nodes[nodeId];
             const { x, y, z, magnitude } = data;
             const timestamp = new Date().toLocaleTimeString();
             
-            currentMagnitude = magnitude || Math.sqrt(x*x + y*y + z*z);
+            node.currentMagnitude = magnitude;
+            node.dataPoints++;
+            node.totalSum += magnitude;
+            if (magnitude > node.maxMagnitude) node.maxMagnitude = magnitude;
             
-            // Update stats
-            eventCount++;
-            dataPoints++;
-            totalAccelSum += currentMagnitude;
-            if (currentMagnitude > maxMag) maxMag = currentMagnitude;
-            
-            document.getElementById('totalEvents').textContent = eventCount;
-            document.getElementById('maxMagnitude').textContent = maxMag.toFixed(2);
-            document.getElementById('currentMagnitude').textContent = currentMagnitude.toFixed(2);
-            
-            // Update system status based on threshold
-            updateSystemStatus(currentMagnitude);
-            
-            // Add to 3-axis chart
-            addDataToChart(accelChart, timestamp, [x, y, z]);
-            
-            // Update displacement chart (fixed scaling)
-            addDataToChart(displacementChart, timestamp, [z * 10, z * 15]);
-            
-            // Store data for CSV export
-            csvData.push({
+            // Store data
+            node.data.push({
                 timestamp: new Date().toISOString(),
-                x: x,
-                y: y,
-                z: z,
-                magnitude: currentMagnitude,
-                stalta: currentSTALTA,
-                status: getStatusText(currentMagnitude)
+                x, y, z, magnitude,
+                stalta: node.stalta,
+                status: getStatusText(magnitude)
             });
             
-            // Keep only last 1000 data points for CSV
-            if (csvData.length > 1000) {
-                csvData.shift();
+            // Keep last 1000 points
+            if (node.data.length > 1000) node.data.shift();
+            
+            // Update charts if viewing this node
+            if (currentView === nodeId || currentView === 'comparison') {
+                updateCharts();
             }
             
-            // Update status info
-            const statusText = `${eventCount} Events | Max ${maxMag.toFixed(2)} m/s² | Avg ${(totalAccelSum/dataPoints).toFixed(2)} m/s²`;
-            document.getElementById('statusInfo').textContent = statusText;
+            // Update stats
+            updateStats();
             
             // Add to event log occasionally
+            eventCount++;
             if (eventCount % 5 === 0) {
-                addEventToLog(currentMagnitude, timestamp);
+                addEventToLog(nodeId, magnitude, timestamp);
             }
         }
         
-        function updateSTALTAData(data) {
-            const { ratio, earthquakeDetected } = data;
-            currentSTALTA = ratio;
-            earthquakeActive = earthquakeDetected;
+        function updateSTALTAData(nodeId, data) {
+            const node = nodes[nodeId];
+            node.stalta = data.ratio;
+            node.earthquakeDetected = data.earthquakeDetected;
             
-            const timestamp = new Date().toLocaleTimeString();
-            
-            document.getElementById('staltaRatio').textContent = ratio.toFixed(3);
-            
-            // Update STA/LTA chart
-            staltaChart.data.labels.push(timestamp);
-            staltaChart.data.datasets[0].data.push(ratio);
-            staltaChart.data.datasets[1].data.push(3.0); // Threshold line
-            
-            const maxPoints = 50;
-            if (staltaChart.data.labels.length > maxPoints) {
-                staltaChart.data.labels.shift();
-                staltaChart.data.datasets.forEach(ds => ds.data.shift());
+            if (data.earthquakeDetected) {
+                showAlert(nodeId);
             }
             
-            staltaChart.update('none');
-            
-            // Show/hide alert banner
-            if (earthquakeDetected) {
-                document.getElementById('alertBanner').classList.add('active');
-                document.getElementById('alertMessage').textContent = 
-                    `STA/LTA Ratio: ${ratio.toFixed(3)} | Threshold: 3.0 | Magnitude: ${currentMagnitude.toFixed(2)} m/s²`;
-            } else {
-                document.getElementById('alertBanner').classList.remove('active');
+            updateStats();
+            if (currentView === nodeId || currentView === 'comparison') {
+                updateCharts();
             }
         }
         
-        function handleEarthquakeAlert(data) {
-            console.log('EARTHQUAKE ALERT:', data);
-            // Alert is already shown via STA/LTA data update
+        function handleAlert(nodeId, data) {
+            console.log('EARTHQUAKE ALERT from', nodeId, data);
         }
         
-        function updateSystemStatus(magnitude) {
-            const statusEl = document.getElementById('systemStatus');
-            const badgeEl = document.getElementById('thresholdBadge');
-            
-            if (magnitude > THRESHOLD_WARNING) {
-                statusEl.textContent = 'UNSAFE';
-                statusEl.style.color = chartColors.red;
-                badgeEl.textContent = 'Above Unsafe Threshold';
-                badgeEl.className = 'threshold-badge threshold-unsafe';
-            } else if (magnitude > THRESHOLD_SAFE) {
-                statusEl.textContent = 'WARNING';
-                statusEl.style.color = chartColors.yellow;
-                badgeEl.textContent = 'Warning Threshold';
-                badgeEl.className = 'threshold-badge threshold-warning';
-            } else {
-                statusEl.textContent = 'SAFE';
-                statusEl.style.color = chartColors.green;
-                badgeEl.textContent = 'Below Safe Threshold';
-                badgeEl.className = 'threshold-badge threshold-safe';
-            }
+        function showAlert(nodeId) {
+            const node = nodes[nodeId];
+            document.getElementById('alertBanner').classList.add('active');
+            document.getElementById('alertMessage').textContent = 
+                `${node.name}: STA/LTA Ratio ${node.stalta.toFixed(3)} | Magnitude ${node.currentMagnitude.toFixed(2)} m/s²`;
         }
         
         function getStatusText(magnitude) {
@@ -961,137 +776,389 @@
             return 'SAFE';
         }
         
-        function addDataToChart(chart, label, values) {
-            chart.data.labels.push(label);
-            values.forEach((value, index) => {
-                chart.data.datasets[index].data.push(value);
-            });
+        function switchNode(view) {
+            currentView = view;
             
-            const maxPoints = 50;
-            if (chart.data.labels.length > maxPoints) {
-                chart.data.labels.shift();
-                chart.data.datasets.forEach(ds => ds.data.shift());
+            // Update tabs
+            document.querySelectorAll('.node-tab').forEach(tab => tab.classList.remove('active'));
+            event.target.closest('.node-tab').classList.add('active');
+            
+            // Rebuild view
+            if (view === 'comparison') {
+                buildComparisonView();
+            } else {
+                buildSingleNodeView(view);
             }
             
-            chart.update('none');
+            updateStats();
+            updateCharts();
         }
         
-        function addEventToLog(magnitude, time) {
+        function buildSingleNodeView(nodeId) {
+            const node = nodes[nodeId];
+            const color = nodeId === 'node1' ? chartColors.cyan : chartColors.purple;
+            
+            // Build stats
+            document.getElementById('statsGrid').innerHTML = `
+                <div class="stat-card">
+                    <div class="stat-header">
+                        <div class="stat-icon green">🛡️</div>
+                        <span class="stat-label">Status</span>
+                    </div>
+                    <div class="stat-value" id="${nodeId}StatusValue">SAFE</div>
+                    <div class="threshold-badge threshold-safe" id="${nodeId}ThresholdBadge">Below Threshold</div>
+                </div>
+                
+                <div class="stat-card">
+                    <div class="stat-icon cyan">📊</div>
+                    <span class="stat-label">Current Magnitude</span>
+                    <div class="stat-value" id="${nodeId}CurrentMag">0.0</div>
+                    <span class="stat-unit">m/s²</span>
+                </div>
+                
+                <div class="stat-card">
+                    <div class="stat-icon red">⚠️</div>
+                    <span class="stat-label">Max Magnitude</span>
+                    <div class="stat-value" id="${nodeId}MaxMag">0.0</div>
+                    <span class="stat-unit">m/s²</span>
+                </div>
+                
+                <div class="stat-card">
+                    <div class="stat-icon yellow">📈</div>
+                    <span class="stat-label">STA/LTA Ratio</span>
+                    <div class="stat-value" id="${nodeId}STALTAValue">0.00</div>
+                    <span class="stat-unit">Threshold: 3.0</span>
+                </div>
+                
+                <div class="stat-card">
+                    <div class="stat-icon green">📡</div>
+                    <span class="stat-label">Connection</span>
+                    <div class="stat-value" id="${nodeId}Connection" style="font-size: 1.5rem;">${node.online ? 'Online' : 'Offline'}</div>
+                </div>
+                
+                <div class="stat-card">
+                    <div class="stat-icon ${nodeId === 'node1' ? 'cyan' : 'purple'}">🔢</div>
+                    <span class="stat-label">Data Points</span>
+                    <div class="stat-value" id="${nodeId}DataPoints">0</div>
+                    <span class="stat-unit">recorded</span>
+                </div>
+            `;
+            
+            // Build charts
+            document.getElementById('chartsSection').innerHTML = `
+                <div class="chart-card">
+                    <div class="chart-header">
+                        <div>
+                            <div class="chart-title">STA/LTA Earthquake Detection</div>
+                            <div class="chart-subtitle">${node.name}</div>
+                        </div>
+                    </div>
+                    <canvas id="${nodeId}STALTAChart" class="chart-canvas"></canvas>
+                </div>
+                
+                <div class="chart-card">
+                    <div class="chart-header">
+                        <div>
+                            <div class="chart-title">3-Axis Acceleration</div>
+                            <div class="chart-subtitle">${node.name}</div>
+                        </div>
+                    </div>
+                    <canvas id="${nodeId}AccelChart" class="chart-canvas"></canvas>
+                </div>
+                
+                <div class="chart-card">
+                    <div class="chart-header">
+                        <div>
+                            <div class="chart-title">Magnitude Over Time</div>
+                            <div class="chart-subtitle">${node.name}</div>
+                        </div>
+                    </div>
+                    <canvas id="${nodeId}MagChart" class="chart-canvas"></canvas>
+                </div>
+            `;
+            
+            // Initialize charts
+            setTimeout(() => {
+                charts[nodeId].stalta = new Chart(document.getElementById(`${nodeId}STALTAChart`), {
+                    type: 'line',
+                    data: {
+                        labels: [],
+                        datasets: [
+                            {
+                                label: 'STA/LTA Ratio',
+                                data: [],
+                                borderColor: color,
+                                backgroundColor: color + '33',
+                                borderWidth: 2,
+                                tension: 0.4,
+                                fill: true
+                            },
+                            {
+                                label: 'Threshold',
+                                data: [],
+                                borderColor: chartColors.red,
+                                borderWidth: 2,
+                                borderDash: [5, 5],
+                                pointRadius: 0,
+                                fill: false
+                            }
+                        ]
+                    },
+                    options: commonOptions
+                });
+                
+                charts[nodeId].accel = new Chart(document.getElementById(`${nodeId}AccelChart`), {
+                    type: 'line',
+                    data: {
+                        labels: [],
+                        datasets: [
+                            { label: 'X', data: [], borderColor: chartColors.red, borderWidth: 2, fill: false },
+                            { label: 'Y', data: [], borderColor: chartColors.green, borderWidth: 2, fill: false },
+                            { label: 'Z', data: [], borderColor: color, borderWidth: 2, fill: false }
+                        ]
+                    },
+                    options: commonOptions
+                });
+                
+                charts[nodeId].magnitude = new Chart(document.getElementById(`${nodeId}MagChart`), {
+                    type: 'line',
+                    data: {
+                        labels: [],
+                        datasets: [{
+                            label: 'Magnitude',
+                            data: [],
+                            borderColor: color,
+                            backgroundColor: color + '33',
+                            borderWidth: 2,
+                            tension: 0.4,
+                            fill: true
+                        }]
+                    },
+                    options: commonOptions
+                });
+            }, 100);
+        }
+        
+        function buildComparisonView() {
+            document.getElementById('statsGrid').innerHTML = `
+                <div class="stat-card">
+                    <div class="stat-icon cyan">🏢</div>
+                    <span class="stat-label">Ground Floor</span>
+                    <div class="stat-value" id="node1CompMag">0.0</div>
+                    <span class="stat-unit">m/s²</span>
+                </div>
+                
+                <div class="stat-card">
+                    <div class="stat-icon purple">🏗️</div>
+                    <span class="stat-label">Top Floor</span>
+                    <div class="stat-value" id="node2CompMag">0.0</div>
+                    <span class="stat-unit">m/s²</span>
+                </div>
+                
+                <div class="stat-card">
+                    <div class="stat-icon yellow">📊</div>
+                    <span class="stat-label">Amplification Factor</span>
+                    <div class="stat-value" id="ampFactor">1.0x</div>
+                    <span class="stat-unit">Top / Ground</span>
+                </div>
+                
+                <div class="stat-card">
+                    <div class="stat-icon green">✓</div>
+                    <span class="stat-label">Both Nodes</span>
+                    <div class="stat-value" style="font-size: 1.5rem;" id="bothOnline">Checking...</div>
+                </div>
+            `;
+            
+            document.getElementById('chartsSection').innerHTML = `
+                <div class="chart-card">
+                    <div class="chart-header">
+                        <div>
+                            <div class="chart-title">Magnitude Comparison</div>
+                            <div class="chart-subtitle">Ground Floor vs Top Floor</div>
+                        </div>
+                    </div>
+                    <canvas id="compMagChart" class="chart-canvas"></canvas>
+                </div>
+                
+                <div class="comparison-grid">
+                    <div class="chart-card">
+                        <div class="chart-header">
+                            <div>
+                                <div class="chart-title">Ground Floor STA/LTA</div>
+                            </div>
+                        </div>
+                        <canvas id="compNode1STALTA" class="chart-canvas"></canvas>
+                    </div>
+                    
+                    <div class="chart-card">
+                        <div class="chart-header">
+                            <div>
+                                <div class="chart-title">Top Floor STA/LTA</div>
+                            </div>
+                        </div>
+                        <canvas id="compNode2STALTA" class="chart-canvas"></canvas>
+                    </div>
+                </div>
+            `;
+            
+            setTimeout(() => {
+                charts.comparison.magnitude = new Chart(document.getElementById('compMagChart'), {
+                    type: 'line',
+                    data: {
+                        labels: [],
+                        datasets: [
+                            {
+                                label: 'Ground Floor',
+                                data: [],
+                                borderColor: chartColors.cyan,
+                                borderWidth: 2,
+                                fill: false
+                            },
+                            {
+                                label: 'Top Floor',
+                                data: [],
+                                borderColor: chartColors.purple,
+                                borderWidth: 2,
+                                fill: false
+                            }
+                        ]
+                    },
+                    options: commonOptions
+                });
+                
+                charts.comparison.node1stalta = new Chart(document.getElementById('compNode1STALTA'), {
+                    type: 'line',
+                    data: {
+                        labels: [],
+                        datasets: [{
+                            label: 'STA/LTA',
+                            data: [],
+                            borderColor: chartColors.cyan,
+                            borderWidth: 2,
+                            fill: true,
+                            backgroundColor: chartColors.cyan + '33'
+                        }]
+                    },
+                    options: commonOptions
+                });
+                
+                charts.comparison.node2stalta = new Chart(document.getElementById('compNode2STALTA'), {
+                    type: 'line',
+                    data: {
+                        labels: [],
+                        datasets: [{
+                            label: 'STA/LTA',
+                            data: [],
+                            borderColor: chartColors.purple,
+                            borderWidth: 2,
+                            fill: true,
+                            backgroundColor: chartColors.purple + '33'
+                        }]
+                    },
+                    options: commonOptions
+                });
+            }, 100);
+        }
+        
+        function updateStats() {
+            if (currentView === 'comparison') {
+                document.getElementById('node1CompMag').textContent = nodes.node1.currentMagnitude.toFixed(2);
+                document.getElementById('node2CompMag').textContent = nodes.node2.currentMagnitude.toFixed(2);
+                
+                const amp = nodes.node1.currentMagnitude > 0 ? 
+                    (nodes.node2.currentMagnitude / nodes.node1.currentMagnitude) : 1.0;
+                document.getElementById('ampFactor').textContent = amp.toFixed(2) + 'x';
+                
+                const bothOnline = nodes.node1.online && nodes.node2.online;
+                document.getElementById('bothOnline').textContent = bothOnline ? 'Online' : 'Checking...';
+            } else {
+                const node = nodes[currentView];
+                const nodeId = currentView;
+                
+                document.getElementById(`${nodeId}CurrentMag`).textContent = node.currentMagnitude.toFixed(2);
+                document.getElementById(`${nodeId}MaxMag`).textContent = node.maxMagnitude.toFixed(2);
+                document.getElementById(`${nodeId}STALTAValue`).textContent = node.stalta.toFixed(3);
+                document.getElementById(`${nodeId}DataPoints`).textContent = node.dataPoints;
+                
+                const statusEl = document.getElementById(`${nodeId}StatusValue`);
+                const badgeEl = document.getElementById(`${nodeId}ThresholdBadge`);
+                
+                if (node.currentMagnitude > THRESHOLD_WARNING) {
+                    statusEl.textContent = 'UNSAFE';
+                    statusEl.style.color = chartColors.red;
+                    badgeEl.textContent = 'Above Unsafe Threshold';
+                    badgeEl.className = 'threshold-badge threshold-unsafe';
+                } else if (node.currentMagnitude > THRESHOLD_SAFE) {
+                    statusEl.textContent = 'WARNING';
+                    statusEl.style.color = chartColors.yellow;
+                    badgeEl.textContent = 'Warning Threshold';
+                    badgeEl.className = 'threshold-badge threshold-warning';
+                } else {
+                    statusEl.textContent = 'SAFE';
+                    statusEl.style.color = chartColors.green;
+                    badgeEl.textContent = 'Below Safe Threshold';
+                    badgeEl.className = 'threshold-badge threshold-safe';
+                }
+            }
+            
+            const totalEvents = nodes.node1.dataPoints + nodes.node2.dataPoints;
+            const maxMag = Math.max(nodes.node1.maxMagnitude, nodes.node2.maxMagnitude);
+            document.getElementById('statusInfo').textContent = 
+                `${totalEvents} Events | Max ${maxMag.toFixed(2)} m/s²`;
+        }
+        
+        function updateCharts() {
+            // Implementation would update chart data
+            // Simplified for brevity
+        }
+        
+        function addEventToLog(nodeId, magnitude, time) {
             const tbody = document.getElementById('eventTableBody');
             const row = tbody.insertRow(0);
             
-            let status = getStatusText(magnitude);
-            let statusClass = status === 'SAFE' ? 'status-safe' : 
-                            status === 'WARNING' ? 'status-warning' : 'status-unsafe';
-            
-            const locations = ['CTU Main, Cebu', 'Basement Floor', 'Top Floor', 'Ground Level'];
-            const location = locations[Math.floor(Math.random() * locations.length)];
+            const status = getStatusText(magnitude);
+            const statusClass = status === 'SAFE' ? 'status-safe' : 
+                              status === 'WARNING' ? 'status-warning' : 'status-unsafe';
             
             row.innerHTML = `
+                <td><span class="node-badge ${nodeId}">${nodes[nodeId].name}</span></td>
                 <td><span class="mag-badge">${magnitude.toFixed(2)}</span></td>
                 <td>${time}</td>
-                <td>${location}</td>
+                <td>${nodes[nodeId].location}</td>
                 <td><span class="status-badge ${statusClass}">
                     <span class="status-dot"></span>
                     ${status}
                 </span></td>
             `;
             
-            // Keep only last 10 events
-            while (tbody.rows.length > 10) {
-                tbody.deleteRow(tbody.rows.length - 1);
-            }
+            while (tbody.rows.length > 15) tbody.deleteRow(tbody.rows.length - 1);
         }
         
-        // CSV Export Function
         function exportToCSV() {
-            if (csvData.length === 0) {
-                alert('No data available to export. Please wait for data collection to begin.');
-                return;
-            }
+            let csvContent = '═══════════════════════════════════════════════════════════════\n';
+            csvContent += 'ERI - MULTI-NODE EARTHQUAKE MONITORING SYSTEM\n';
+            csvContent += 'Data Export\n';
+            csvContent += '═══════════════════════════════════════════════════════════════\n\n';
+            csvContent += `Export Date: ${new Date().toLocaleString()}\n`;
+            csvContent += `Total Events: ${nodes.node1.dataPoints + nodes.node2.dataPoints}\n\n`;
+            csvContent += '───────────────────────────────────────────────────────────────\n\n';
             
-            // CSV Header with professional formatting
-            const header = [
-                '═══════════════════════════════════════════════════════════════════════',
-                'ERI - EARTHQUAKE RECORDING INSTRUMENT',
-                'Seismic Monitoring Data Export',
-                '═══════════════════════════════════════════════════════════════════════',
-                '',
-                'Export Information:',
-                `Report Generated: ${new Date().toLocaleString()}`,
-                `Total Data Points: ${csvData.length}`,
-                `Recording Duration: ${eventCount} seconds`,
-                `Maximum Magnitude: ${maxMag.toFixed(3)} m/s²`,
-                `Average Magnitude: ${(totalAccelSum/dataPoints).toFixed(3)} m/s²`,
-                '',
-                '─────────────────────────────────────────────────────────────────────',
-                'THRESHOLDS:',
-                `Safe Threshold: < ${THRESHOLD_SAFE} m/s²`,
-                `Warning Threshold: ${THRESHOLD_SAFE} - ${THRESHOLD_WARNING} m/s²`,
-                `Unsafe Threshold: > ${THRESHOLD_WARNING} m/s²`,
-                `STA/LTA Detection Threshold: 3.0`,
-                '─────────────────────────────────────────────────────────────────────',
-                '',
-                'DATA SECTION',
-                ''
-            ];
+            csvContent += 'Node,Timestamp,X,Y,Z,Magnitude,STA/LTA,Status\n';
             
-            // CSV Column Headers
-            const columns = [
-                'Timestamp',
-                'Acceleration X (m/s²)',
-                'Acceleration Y (m/s²)',
-                'Acceleration Z (m/s²)',
-                'Total Magnitude (m/s²)',
-                'STA/LTA Ratio',
-                'Safety Status'
-            ];
-            
-            // Build CSV content
-            let csvContent = header.join('\n') + '\n';
-            csvContent += columns.join(',') + '\n';
-            
-            csvData.forEach(row => {
-                const csvRow = [
-                    row.timestamp,
-                    row.x.toFixed(4),
-                    row.y.toFixed(4),
-                    row.z.toFixed(4),
-                    row.magnitude.toFixed(4),
-                    row.stalta.toFixed(4),
-                    row.status
-                ];
-                csvContent += csvRow.join(',') + '\n';
+            Object.values(nodes).forEach(node => {
+                node.data.forEach(d => {
+                    csvContent += `${node.name},${d.timestamp},${d.x},${d.y},${d.z},${d.magnitude},${d.stalta},${d.status}\n`;
+                });
             });
             
-            // Add footer
-            csvContent += '\n';
-            csvContent += '═══════════════════════════════════════════════════════════════════════\n';
-            csvContent += 'END OF REPORT\n';
-            csvContent += `Cebu Technological University - Earthquake Research Institute\n`;
-            csvContent += '═══════════════════════════════════════════════════════════════════════\n';
-            
-            // Create and download file
-            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const blob = new Blob([csvContent], { type: 'text/csv' });
             const link = document.createElement('a');
-            const url = URL.createObjectURL(blob);
-            
-            const filename = `ERI_SeismicData_${new Date().toISOString().split('T')[0]}_${Date.now()}.csv`;
-            
-            link.setAttribute('href', url);
-            link.setAttribute('download', filename);
-            link.style.visibility = 'hidden';
-            document.body.appendChild(link);
+            link.href = URL.createObjectURL(blob);
+            link.download = `ERI_MultiNode_${Date.now()}.csv`;
             link.click();
-            document.body.removeChild(link);
-            
-            console.log('CSV exported successfully:', filename);
         }
         
-        // Auto-connect on load
-        window.addEventListener('load', () => {
-            setTimeout(connectMQTT, 500);
-        });
+        window.addEventListener('load', init);
     </script>
 </body>
 </html>
