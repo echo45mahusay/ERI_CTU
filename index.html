@@ -34,7 +34,6 @@
             overflow-x: hidden;
         }
         
-        /* Top Navigation */
         .top-nav {
             background: var(--bg-secondary);
             border-bottom: 1px solid var(--border-color);
@@ -98,14 +97,12 @@
         .btn-success { background: var(--accent-green); }
         .btn-success:hover { background: #059669; }
         
-        /* Container */
         .container {
             max-width: 1800px;
             margin: 0 auto;
             padding: 2rem;
         }
         
-        /* Page Header */
         .page-header {
             margin-bottom: 2rem;
             display: flex;
@@ -124,7 +121,6 @@
             font-size: 0.875rem;
         }
         
-        /* Node Selector */
         .node-selector {
             display: flex;
             gap: 1rem;
@@ -185,7 +181,6 @@
             color: var(--accent-red);
         }
         
-        /* Stats Grid */
         .stats-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
@@ -250,7 +245,6 @@
             font-weight: 400;
         }
         
-        /* Threshold Badge */
         .threshold-badge {
             display: inline-block;
             padding: 0.25rem 0.75rem;
@@ -275,7 +269,6 @@
             color: var(--accent-red);
         }
         
-        /* Chart Card */
         .chart-card {
             background: var(--bg-card);
             border: 1px solid var(--border-color);
@@ -307,7 +300,6 @@
             height: 300px !important;
         }
         
-        /* Comparison View */
         .comparison-grid {
             display: grid;
             grid-template-columns: 1fr 1fr;
@@ -315,7 +307,6 @@
             margin-bottom: 1.5rem;
         }
         
-        /* Alert Banner */
         .alert-banner {
             background: var(--bg-card);
             border: 2px solid var(--accent-red);
@@ -349,7 +340,6 @@
             font-size: 0.875rem;
         }
         
-        /* Event Log */
         .event-log {
             background: var(--bg-card);
             border: 1px solid var(--border-color);
@@ -447,7 +437,6 @@
     </style>
 </head>
 <body>
-    <!-- Top Navigation -->
     <nav class="top-nav">
         <div class="nav-container">
             <div class="nav-brand">
@@ -462,7 +451,6 @@
     </nav>
 
     <div class="container">
-        <!-- Alert Banner -->
         <div class="alert-banner" id="alertBanner">
             <div class="alert-icon">🚨</div>
             <div class="alert-content">
@@ -471,7 +459,6 @@
             </div>
         </div>
 
-        <!-- Page Header -->
         <div class="page-header">
             <div>
                 <h1 class="page-title">Real-Time Seismic Monitoring</h1>
@@ -479,36 +466,27 @@
             </div>
         </div>
         
-        <!-- Node Selector -->
         <div class="node-selector">
-            <div class="node-tab node1 active" onclick="switchNode('node1')">
+            <div class="node-tab node1 active" onclick="switchNode('node1', event)">
                 <div class="node-tab-title">🏢 Ground Floor</div>
                 <div class="node-tab-subtitle">CTU Main Building - Ground Level</div>
                 <div class="node-tab-status offline" id="node1Status">Offline</div>
             </div>
-            <div class="node-tab node2" onclick="switchNode('node2')">
+            <div class="node-tab node2" onclick="switchNode('node2', event)">
                 <div class="node-tab-title">🏗️ Top Floor</div>
                 <div class="node-tab-subtitle">CTU Main Building - Top Level</div>
                 <div class="node-tab-status offline" id="node2Status">Offline</div>
             </div>
-            <div class="node-tab" onclick="switchNode('comparison')">
+            <div class="node-tab" onclick="switchNode('comparison', event)">
                 <div class="node-tab-title">📊 Comparison View</div>
                 <div class="node-tab-subtitle">Compare Both Nodes</div>
                 <div class="node-tab-status online">Active</div>
             </div>
         </div>
         
-        <!-- Stats Grid -->
-        <div class="stats-grid" id="statsGrid">
-            <!-- Stats will be dynamically populated -->
-        </div>
+        <div class="stats-grid" id="statsGrid"></div>
+        <div id="chartsSection"></div>
         
-        <!-- Charts Section -->
-        <div id="chartsSection">
-            <!-- Charts will be dynamically populated based on view -->
-        </div>
-        
-        <!-- Event Log -->
         <div class="event-log">
             <div class="log-header">
                 <div class="chart-title">Recent Seismic Events</div>
@@ -524,30 +502,25 @@
                         <th>Status</th>
                     </tr>
                 </thead>
-                <tbody id="eventTableBody">
-                    <!-- Events will be added dynamically -->
-                </tbody>
+                <tbody id="eventTableBody"></tbody>
             </table>
         </div>
     </div>
 
     <script>
-        // MQTT Configuration
         const MQTT_BROKER = 'df7f72e09ae84a60aa37e2f4e19c7356.s1.eu.hivemq.cloud';
         const MQTT_PORT = 8884;
         const MQTT_USERNAME = 'ERI-Cluster';
         const MQTT_PASSWORD = 'Abc12345';
         
-        // Safety Thresholds
         const THRESHOLD_SAFE = 10.5;
         const THRESHOLD_WARNING = 11.5;
+        const MAX_POINTS = 50;
         
-        // Global State
         let client;
         let currentView = 'node1';
         let eventCount = 0;
         
-        // Node Data Storage
         const nodes = {
             node1: {
                 id: 'node1',
@@ -555,6 +528,7 @@
                 location: 'CTU Main Building - Ground Level',
                 online: false,
                 data: [],
+                chartData: { labels: [], accel: {x:[], y:[], z:[]}, magnitude: [], stalta: [] },
                 currentMagnitude: 0,
                 maxMagnitude: 0,
                 stalta: 0,
@@ -568,6 +542,7 @@
                 location: 'CTU Main Building - Top Level',
                 online: false,
                 data: [],
+                chartData: { labels: [], accel: {x:[], y:[], z:[]}, magnitude: [], stalta: [] },
                 currentMagnitude: 0,
                 maxMagnitude: 0,
                 stalta: 0,
@@ -577,10 +552,6 @@
             }
         };
         
-        // CSV Data Storage
-        let csvData = [];
-        
-        // Chart Colors
         const chartColors = {
             cyan: '#06b6d4',
             purple: '#a855f7',
@@ -590,14 +561,8 @@
             text: '#9ca3af'
         };
         
-        // Charts
-        let charts = {
-            node1: {},
-            node2: {},
-            comparison: {}
-        };
+        let charts = {};
         
-        // Common Chart Options
         const commonOptions = {
             responsive: true,
             maintainAspectRatio: false,
@@ -605,10 +570,7 @@
             plugins: {
                 legend: {
                     display: true,
-                    labels: {
-                        color: chartColors.text,
-                        font: { family: 'JetBrains Mono' }
-                    }
+                    labels: { color: chartColors.text, font: { family: 'JetBrains Mono' }}
                 }
             },
             scales: {
@@ -618,20 +580,17 @@
                 },
                 y: {
                     ticks: { color: chartColors.text },
-                    grid: { color: 'rgba(255, 255, 255, 0.05)' },
-                    beginAtZero: false
+                    grid: { color: 'rgba(255, 255, 255, 0.05)' }
                 }
             },
             animation: false
         };
         
-        // Initialize
         function init() {
-            switchNode('node1');
+            buildSingleNodeView('node1');
             setTimeout(connectMQTT, 500);
         }
         
-        // MQTT Functions
         function connectMQTT() {
             const clientId = 'ERI_MultiNode_' + Math.random().toString(16).substr(2, 8);
             client = new Paho.MQTT.Client(MQTT_BROKER, MQTT_PORT, '/mqtt', clientId);
@@ -657,7 +616,6 @@
             document.getElementById('connectBtn').classList.remove('btn-success');
             document.getElementById('connectBtn').classList.add('btn-secondary');
             
-            // Subscribe to all node topics
             client.subscribe('eri/earthquake/+/acceleration');
             client.subscribe('eri/earthquake/+/stalta');
             client.subscribe('eri/earthquake/+/alert');
@@ -682,7 +640,7 @@
             const topic = message.destinationName;
             const payload = JSON.parse(message.payloadString);
             const parts = topic.split('/');
-            const nodeId = parts[2]; // eri/earthquake/[nodeId]/[type]
+            const nodeId = parts[2];
             const type = parts[3];
             
             if (type === 'acceleration') {
@@ -718,7 +676,26 @@
             node.totalSum += magnitude;
             if (magnitude > node.maxMagnitude) node.maxMagnitude = magnitude;
             
-            // Store data
+            // Add to chart data
+            node.chartData.labels.push(timestamp);
+            node.chartData.accel.x.push(x);
+            node.chartData.accel.y.push(y);
+            node.chartData.accel.z.push(z);
+            node.chartData.magnitude.push(magnitude);
+            
+            // Keep last MAX_POINTS
+            if (node.chartData.labels.length > MAX_POINTS) {
+                node.chartData.labels.shift();
+                node.chartData.accel.x.shift();
+                node.chartData.accel.y.shift();
+                node.chartData.accel.z.shift();
+                node.chartData.magnitude.shift();
+                if (node.chartData.stalta.length > MAX_POINTS) {
+                    node.chartData.stalta.shift();
+                }
+            }
+            
+            // Store full data
             node.data.push({
                 timestamp: new Date().toISOString(),
                 x, y, z, magnitude,
@@ -726,18 +703,11 @@
                 status: getStatusText(magnitude)
             });
             
-            // Keep last 1000 points
             if (node.data.length > 1000) node.data.shift();
             
-            // Update charts if viewing this node
-            if (currentView === nodeId || currentView === 'comparison') {
-                updateCharts();
-            }
-            
-            // Update stats
             updateStats();
+            updateCharts();
             
-            // Add to event log occasionally
             eventCount++;
             if (eventCount % 5 === 0) {
                 addEventToLog(nodeId, magnitude, timestamp);
@@ -749,14 +719,17 @@
             node.stalta = data.ratio;
             node.earthquakeDetected = data.earthquakeDetected;
             
+            // Add to chart data
+            node.chartData.stalta.push(data.ratio);
+            
             if (data.earthquakeDetected) {
                 showAlert(nodeId);
+            } else {
+                document.getElementById('alertBanner').classList.remove('active');
             }
             
             updateStats();
-            if (currentView === nodeId || currentView === 'comparison') {
-                updateCharts();
-            }
+            updateCharts();
         }
         
         function handleAlert(nodeId, data) {
@@ -776,14 +749,12 @@
             return 'SAFE';
         }
         
-        function switchNode(view) {
+        function switchNode(view, event) {
             currentView = view;
             
-            // Update tabs
             document.querySelectorAll('.node-tab').forEach(tab => tab.classList.remove('active'));
-            event.target.closest('.node-tab').classList.add('active');
+            if (event) event.target.closest('.node-tab').classList.add('active');
             
-            // Rebuild view
             if (view === 'comparison') {
                 buildComparisonView();
             } else {
@@ -791,14 +762,12 @@
             }
             
             updateStats();
-            updateCharts();
         }
         
         function buildSingleNodeView(nodeId) {
             const node = nodes[nodeId];
             const color = nodeId === 'node1' ? chartColors.cyan : chartColors.purple;
             
-            // Build stats
             document.getElementById('statsGrid').innerHTML = `
                 <div class="stat-card">
                     <div class="stat-header">
@@ -810,41 +779,50 @@
                 </div>
                 
                 <div class="stat-card">
-                    <div class="stat-icon cyan">📊</div>
-                    <span class="stat-label">Current Magnitude</span>
+                    <div class="stat-header">
+                        <div class="stat-icon cyan">📊</div>
+                        <span class="stat-label">Current Magnitude</span>
+                    </div>
                     <div class="stat-value" id="${nodeId}CurrentMag">0.0</div>
                     <span class="stat-unit">m/s²</span>
                 </div>
                 
                 <div class="stat-card">
-                    <div class="stat-icon red">⚠️</div>
-                    <span class="stat-label">Max Magnitude</span>
+                    <div class="stat-header">
+                        <div class="stat-icon red">⚠️</div>
+                        <span class="stat-label">Max Magnitude</span>
+                    </div>
                     <div class="stat-value" id="${nodeId}MaxMag">0.0</div>
                     <span class="stat-unit">m/s²</span>
                 </div>
                 
                 <div class="stat-card">
-                    <div class="stat-icon yellow">📈</div>
-                    <span class="stat-label">STA/LTA Ratio</span>
+                    <div class="stat-header">
+                        <div class="stat-icon yellow">📈</div>
+                        <span class="stat-label">STA/LTA Ratio</span>
+                    </div>
                     <div class="stat-value" id="${nodeId}STALTAValue">0.00</div>
                     <span class="stat-unit">Threshold: 3.0</span>
                 </div>
                 
                 <div class="stat-card">
-                    <div class="stat-icon green">📡</div>
-                    <span class="stat-label">Connection</span>
+                    <div class="stat-header">
+                        <div class="stat-icon green">📡</div>
+                        <span class="stat-label">Connection</span>
+                    </div>
                     <div class="stat-value" id="${nodeId}Connection" style="font-size: 1.5rem;">${node.online ? 'Online' : 'Offline'}</div>
                 </div>
                 
                 <div class="stat-card">
-                    <div class="stat-icon ${nodeId === 'node1' ? 'cyan' : 'purple'}">🔢</div>
-                    <span class="stat-label">Data Points</span>
+                    <div class="stat-header">
+                        <div class="stat-icon ${nodeId === 'node1' ? 'cyan' : 'purple'}">🔢</div>
+                        <span class="stat-label">Data Points</span>
+                    </div>
                     <div class="stat-value" id="${nodeId}DataPoints">0</div>
                     <span class="stat-unit">recorded</span>
                 </div>
             `;
             
-            // Build charts
             document.getElementById('chartsSection').innerHTML = `
                 <div class="chart-card">
                     <div class="chart-header">
@@ -877,16 +855,15 @@
                 </div>
             `;
             
-            // Initialize charts
             setTimeout(() => {
-                charts[nodeId].stalta = new Chart(document.getElementById(`${nodeId}STALTAChart`), {
+                charts[`${nodeId}_stalta`] = new Chart(document.getElementById(`${nodeId}STALTAChart`), {
                     type: 'line',
                     data: {
-                        labels: [],
+                        labels: node.chartData.labels,
                         datasets: [
                             {
                                 label: 'STA/LTA Ratio',
-                                data: [],
+                                data: node.chartData.stalta,
                                 borderColor: color,
                                 backgroundColor: color + '33',
                                 borderWidth: 2,
@@ -894,8 +871,8 @@
                                 fill: true
                             },
                             {
-                                label: 'Threshold',
-                                data: [],
+                                label: 'Threshold (3.0)',
+                                data: Array(node.chartData.labels.length).fill(3.0),
                                 borderColor: chartColors.red,
                                 borderWidth: 2,
                                 borderDash: [5, 5],
@@ -907,26 +884,26 @@
                     options: commonOptions
                 });
                 
-                charts[nodeId].accel = new Chart(document.getElementById(`${nodeId}AccelChart`), {
+                charts[`${nodeId}_accel`] = new Chart(document.getElementById(`${nodeId}AccelChart`), {
                     type: 'line',
                     data: {
-                        labels: [],
+                        labels: node.chartData.labels,
                         datasets: [
-                            { label: 'X', data: [], borderColor: chartColors.red, borderWidth: 2, fill: false },
-                            { label: 'Y', data: [], borderColor: chartColors.green, borderWidth: 2, fill: false },
-                            { label: 'Z', data: [], borderColor: color, borderWidth: 2, fill: false }
+                            { label: 'X', data: node.chartData.accel.x, borderColor: chartColors.red, borderWidth: 2, fill: false, tension: 0.4 },
+                            { label: 'Y', data: node.chartData.accel.y, borderColor: chartColors.green, borderWidth: 2, fill: false, tension: 0.4 },
+                            { label: 'Z', data: node.chartData.accel.z, borderColor: color, borderWidth: 2, fill: false, tension: 0.4 }
                         ]
                     },
                     options: commonOptions
                 });
                 
-                charts[nodeId].magnitude = new Chart(document.getElementById(`${nodeId}MagChart`), {
+                charts[`${nodeId}_mag`] = new Chart(document.getElementById(`${nodeId}MagChart`), {
                     type: 'line',
                     data: {
-                        labels: [],
+                        labels: node.chartData.labels,
                         datasets: [{
                             label: 'Magnitude',
-                            data: [],
+                            data: node.chartData.magnitude,
                             borderColor: color,
                             backgroundColor: color + '33',
                             borderWidth: 2,
@@ -942,29 +919,37 @@
         function buildComparisonView() {
             document.getElementById('statsGrid').innerHTML = `
                 <div class="stat-card">
-                    <div class="stat-icon cyan">🏢</div>
-                    <span class="stat-label">Ground Floor</span>
+                    <div class="stat-header">
+                        <div class="stat-icon cyan">🏢</div>
+                        <span class="stat-label">Ground Floor</span>
+                    </div>
                     <div class="stat-value" id="node1CompMag">0.0</div>
                     <span class="stat-unit">m/s²</span>
                 </div>
                 
                 <div class="stat-card">
-                    <div class="stat-icon purple">🏗️</div>
-                    <span class="stat-label">Top Floor</span>
+                    <div class="stat-header">
+                        <div class="stat-icon purple">🏗️</div>
+                        <span class="stat-label">Top Floor</span>
+                    </div>
                     <div class="stat-value" id="node2CompMag">0.0</div>
                     <span class="stat-unit">m/s²</span>
                 </div>
                 
                 <div class="stat-card">
-                    <div class="stat-icon yellow">📊</div>
-                    <span class="stat-label">Amplification Factor</span>
+                    <div class="stat-header">
+                        <div class="stat-icon yellow">📊</div>
+                        <span class="stat-label">Amplification Factor</span>
+                    </div>
                     <div class="stat-value" id="ampFactor">1.0x</div>
                     <span class="stat-unit">Top / Ground</span>
                 </div>
                 
                 <div class="stat-card">
-                    <div class="stat-icon green">✓</div>
-                    <span class="stat-label">Both Nodes</span>
+                    <div class="stat-header">
+                        <div class="stat-icon green">✓</div>
+                        <span class="stat-label">Both Nodes</span>
+                    </div>
                     <div class="stat-value" style="font-size: 1.5rem;" id="bothOnline">Checking...</div>
                 </div>
             `;
@@ -1002,57 +987,61 @@
             `;
             
             setTimeout(() => {
-                charts.comparison.magnitude = new Chart(document.getElementById('compMagChart'), {
+                charts.comp_magnitude = new Chart(document.getElementById('compMagChart'), {
                     type: 'line',
                     data: {
-                        labels: [],
+                        labels: nodes.node1.chartData.labels,
                         datasets: [
                             {
                                 label: 'Ground Floor',
-                                data: [],
+                                data: nodes.node1.chartData.magnitude,
                                 borderColor: chartColors.cyan,
                                 borderWidth: 2,
-                                fill: false
+                                fill: false,
+                                tension: 0.4
                             },
                             {
                                 label: 'Top Floor',
-                                data: [],
+                                data: nodes.node2.chartData.magnitude,
                                 borderColor: chartColors.purple,
                                 borderWidth: 2,
-                                fill: false
+                                fill: false,
+                                tension: 0.4
                             }
                         ]
                     },
                     options: commonOptions
                 });
                 
-                charts.comparison.node1stalta = new Chart(document.getElementById('compNode1STALTA'), {
+                charts.comp_node1stalta = new Chart(document.getElementById('compNode1STALTA'), {
                     type: 'line',
                     data: {
-                        labels: [],
+                        labels: nodes.node1.chartData.labels,
                         datasets: [{
                             label: 'STA/LTA',
-                            data: [],
+                            data: nodes.node1.chartData.stalta,
                             borderColor: chartColors.cyan,
                             borderWidth: 2,
                             fill: true,
-                            backgroundColor: chartColors.cyan + '33'
+                            backgroundColor: chartColors.cyan + '33',
+                            tension: 0.4
                         }]
                     },
                     options: commonOptions
                 });
                 
-                charts.comparison.node2stalta = new Chart(document.getElementById('compNode2STALTA'), {
+                charts.comp_node2stalta = new Chart(document.getElementById('compNode2STALTA'), {
                     type: 'line',
                     data: {
-                        labels: [],
+                        labels: nodes.node2.chartData.labels,
                         datasets: [{
                             label: 'STA/LTA',
-                            data: [],
+                            data: nodes.node2.chartData.stalta,
                             borderColor: chartColors.purple,
                             borderWidth: 2,
                             fill: true,
-                            backgroundColor: chartColors.purple + '33'
+                            backgroundColor: chartColors.purple + '33',
+                            tension: 0.4
                         }]
                     },
                     options: commonOptions
@@ -1071,33 +1060,41 @@
                 
                 const bothOnline = nodes.node1.online && nodes.node2.online;
                 document.getElementById('bothOnline').textContent = bothOnline ? 'Online' : 'Checking...';
+                document.getElementById('bothOnline').style.color = bothOnline ? chartColors.green : chartColors.yellow;
             } else {
                 const node = nodes[currentView];
                 const nodeId = currentView;
                 
-                document.getElementById(`${nodeId}CurrentMag`).textContent = node.currentMagnitude.toFixed(2);
-                document.getElementById(`${nodeId}MaxMag`).textContent = node.maxMagnitude.toFixed(2);
-                document.getElementById(`${nodeId}STALTAValue`).textContent = node.stalta.toFixed(3);
-                document.getElementById(`${nodeId}DataPoints`).textContent = node.dataPoints;
+                const currMagEl = document.getElementById(`${nodeId}CurrentMag`);
+                const maxMagEl = document.getElementById(`${nodeId}MaxMag`);
+                const staltaEl = document.getElementById(`${nodeId}STALTAValue`);
+                const dataPointsEl = document.getElementById(`${nodeId}DataPoints`);
+                
+                if (currMagEl) currMagEl.textContent = node.currentMagnitude.toFixed(2);
+                if (maxMagEl) maxMagEl.textContent = node.maxMagnitude.toFixed(2);
+                if (staltaEl) staltaEl.textContent = node.stalta.toFixed(3);
+                if (dataPointsEl) dataPointsEl.textContent = node.dataPoints;
                 
                 const statusEl = document.getElementById(`${nodeId}StatusValue`);
                 const badgeEl = document.getElementById(`${nodeId}ThresholdBadge`);
                 
-                if (node.currentMagnitude > THRESHOLD_WARNING) {
-                    statusEl.textContent = 'UNSAFE';
-                    statusEl.style.color = chartColors.red;
-                    badgeEl.textContent = 'Above Unsafe Threshold';
-                    badgeEl.className = 'threshold-badge threshold-unsafe';
-                } else if (node.currentMagnitude > THRESHOLD_SAFE) {
-                    statusEl.textContent = 'WARNING';
-                    statusEl.style.color = chartColors.yellow;
-                    badgeEl.textContent = 'Warning Threshold';
-                    badgeEl.className = 'threshold-badge threshold-warning';
-                } else {
-                    statusEl.textContent = 'SAFE';
-                    statusEl.style.color = chartColors.green;
-                    badgeEl.textContent = 'Below Safe Threshold';
-                    badgeEl.className = 'threshold-badge threshold-safe';
+                if (statusEl && badgeEl) {
+                    if (node.currentMagnitude > THRESHOLD_WARNING) {
+                        statusEl.textContent = 'UNSAFE';
+                        statusEl.style.color = chartColors.red;
+                        badgeEl.textContent = 'Above Unsafe Threshold';
+                        badgeEl.className = 'threshold-badge threshold-unsafe';
+                    } else if (node.currentMagnitude > THRESHOLD_SAFE) {
+                        statusEl.textContent = 'WARNING';
+                        statusEl.style.color = chartColors.yellow;
+                        badgeEl.textContent = 'Warning Threshold';
+                        badgeEl.className = 'threshold-badge threshold-warning';
+                    } else {
+                        statusEl.textContent = 'SAFE';
+                        statusEl.style.color = chartColors.green;
+                        badgeEl.textContent = 'Below Safe Threshold';
+                        badgeEl.className = 'threshold-badge threshold-safe';
+                    }
                 }
             }
             
@@ -1108,8 +1105,46 @@
         }
         
         function updateCharts() {
-            // Implementation would update chart data
-            // Simplified for brevity
+            if (currentView === 'comparison') {
+                if (charts.comp_magnitude) {
+                    charts.comp_magnitude.data.labels = nodes.node1.chartData.labels;
+                    charts.comp_magnitude.data.datasets[0].data = nodes.node1.chartData.magnitude;
+                    charts.comp_magnitude.data.datasets[1].data = nodes.node2.chartData.magnitude;
+                    charts.comp_magnitude.update('none');
+                }
+                if (charts.comp_node1stalta) {
+                    charts.comp_node1stalta.data.labels = nodes.node1.chartData.labels;
+                    charts.comp_node1stalta.data.datasets[0].data = nodes.node1.chartData.stalta;
+                    charts.comp_node1stalta.update('none');
+                }
+                if (charts.comp_node2stalta) {
+                    charts.comp_node2stalta.data.labels = nodes.node2.chartData.labels;
+                    charts.comp_node2stalta.data.datasets[0].data = nodes.node2.chartData.stalta;
+                    charts.comp_node2stalta.update('none');
+                }
+            } else {
+                const nodeId = currentView;
+                const node = nodes[nodeId];
+                
+                if (charts[`${nodeId}_stalta`]) {
+                    charts[`${nodeId}_stalta`].data.labels = node.chartData.labels;
+                    charts[`${nodeId}_stalta`].data.datasets[0].data = node.chartData.stalta;
+                    charts[`${nodeId}_stalta`].data.datasets[1].data = Array(node.chartData.labels.length).fill(3.0);
+                    charts[`${nodeId}_stalta`].update('none');
+                }
+                if (charts[`${nodeId}_accel`]) {
+                    charts[`${nodeId}_accel`].data.labels = node.chartData.labels;
+                    charts[`${nodeId}_accel`].data.datasets[0].data = node.chartData.accel.x;
+                    charts[`${nodeId}_accel`].data.datasets[1].data = node.chartData.accel.y;
+                    charts[`${nodeId}_accel`].data.datasets[2].data = node.chartData.accel.z;
+                    charts[`${nodeId}_accel`].update('none');
+                }
+                if (charts[`${nodeId}_mag`]) {
+                    charts[`${nodeId}_mag`].data.labels = node.chartData.labels;
+                    charts[`${nodeId}_mag`].data.datasets[0].data = node.chartData.magnitude;
+                    charts[`${nodeId}_mag`].update('none');
+                }
+            }
         }
         
         function addEventToLog(nodeId, magnitude, time) {
@@ -1147,7 +1182,7 @@
             
             Object.values(nodes).forEach(node => {
                 node.data.forEach(d => {
-                    csvContent += `${node.name},${d.timestamp},${d.x},${d.y},${d.z},${d.magnitude},${d.stalta},${d.status}\n`;
+                    csvContent += `${node.name},${d.timestamp},${d.x.toFixed(4)},${d.y.toFixed(4)},${d.z.toFixed(4)},${d.magnitude.toFixed(4)},${d.stalta.toFixed(4)},${d.status}\n`;
                 });
             });
             
