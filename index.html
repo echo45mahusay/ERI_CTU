@@ -6,6 +6,8 @@
     <title>ERI - Enhanced Multi-Node Dashboard</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.0.1/mqttws31.min.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -533,6 +535,119 @@
         .btn-danger { background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.4); color: var(--accent-red); }
         .btn-danger:hover { background: rgba(239, 68, 68, 0.25); transform: translateY(-2px); }
 
+        /* Firebase Setup Modal */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.85);
+            z-index: 999;
+            align-items: center;
+            justify-content: center;
+            backdrop-filter: blur(4px);
+        }
+        .modal-overlay.visible { display: flex; }
+
+        .modal-box {
+            background: var(--bg-card);
+            border: 1px solid var(--accent-cyan);
+            border-radius: 16px;
+            padding: 2.5rem;
+            width: min(600px, 95vw);
+            box-shadow: 0 0 60px rgba(6,182,212,0.15);
+        }
+        .modal-title {
+            font-size: 1.25rem;
+            font-weight: 700;
+            color: var(--accent-cyan);
+            margin-bottom: 0.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        .modal-subtitle {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            margin-bottom: 1.75rem;
+            line-height: 1.6;
+        }
+        .modal-subtitle a { color: var(--accent-cyan); }
+        .modal-steps {
+            background: var(--bg-secondary);
+            border-radius: 8px;
+            padding: 1rem 1.25rem;
+            margin-bottom: 1.5rem;
+            font-size: 0.78rem;
+            color: var(--text-secondary);
+            line-height: 2;
+        }
+        .modal-steps span { color: var(--accent-cyan); font-weight: 700; }
+        .modal-textarea {
+            width: 100%;
+            height: 200px;
+            padding: 1rem;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            color: var(--text-primary);
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.75rem;
+            resize: vertical;
+            margin-bottom: 1rem;
+        }
+        .modal-textarea:focus { outline: none; border-color: var(--accent-cyan); }
+        .modal-error {
+            font-size: 0.78rem;
+            color: var(--accent-red);
+            margin-bottom: 0.75rem;
+            min-height: 1.2em;
+        }
+        .modal-actions { display: flex; gap: 1rem; }
+        .modal-actions .btn { flex: 1; }
+
+        /* Firebase sync badge in nav */
+        .fb-badge {
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+            font-size: 0.72rem;
+            padding: 0.3rem 0.7rem;
+            border-radius: 20px;
+            border: 1px solid var(--border-color);
+            background: var(--bg-card);
+            color: var(--text-muted);
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .fb-badge.syncing { border-color: var(--accent-yellow); color: var(--accent-yellow); }
+        .fb-badge.connected { border-color: var(--accent-green); color: var(--accent-green); }
+        .fb-badge.error { border-color: var(--accent-red); color: var(--accent-red); }
+        .fb-dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+
+        /* Loading overlay while fetching historical data */
+        .fb-loading {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(10,14,23,0.88);
+            z-index: 900;
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+            gap: 1rem;
+            backdrop-filter: blur(3px);
+        }
+        .fb-loading.visible { display: flex; }
+        .fb-loading-text { font-size: 0.9rem; color: var(--text-secondary); }
+        .fb-spinner {
+            width: 36px; height: 36px;
+            border: 3px solid var(--border-color);
+            border-top-color: var(--accent-cyan);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
         /* Responsive */
         @media (max-width: 1200px) {
             .nodes-grid {
@@ -570,6 +685,10 @@
             </div>
             
             <div class="nav-right">
+                <div class="fb-badge" id="fbBadge" onclick="showFirebaseSetup()" title="Click to configure Firebase">
+                    <div class="fb-dot"></div>
+                    <span id="fbBadgeText">Firebase: Not configured</span>
+                </div>
                 <button class="btn btn-success" id="connectBtn" onclick="connectMQTT()">🔌 Connect</button>
             </div>
         </div>
@@ -702,6 +821,44 @@
         </div>
     </div>
     
+    <!-- Firebase Setup Modal -->
+    <div class="modal-overlay" id="fbModal">
+        <div class="modal-box">
+            <div class="modal-title">🔥 Firebase Setup</div>
+            <p class="modal-subtitle">
+                Connect to Firebase Realtime Database so all your data is shared across every device in real-time.
+                All historical recordings from system start will be visible everywhere.
+            </p>
+            <div class="modal-steps">
+                <span>Step 1</span> Go to <a href="https://console.firebase.google.com" target="_blank">console.firebase.google.com</a> → Create a project<br>
+                <span>Step 2</span> Build → Realtime Database → Create Database → Start in <b>test mode</b><br>
+                <span>Step 3</span> Project Settings (⚙️) → Your apps → Add Web app → Register<br>
+                <span>Step 4</span> Copy the <b>firebaseConfig</b> object below and paste it here:
+            </div>
+            <textarea class="modal-textarea" id="fbConfigInput" spellcheck="false" placeholder='Paste your firebaseConfig here, e.g.:
+{
+  "apiKey": "AIza...",
+  "authDomain": "your-project.firebaseapp.com",
+  "databaseURL": "https://your-project-default-rtdb.firebaseio.com",
+  "projectId": "your-project",
+  "storageBucket": "your-project.appspot.com",
+  "messagingSenderId": "123456789",
+  "appId": "1:123456789:web:abc123"
+}'></textarea>
+            <div class="modal-error" id="fbModalError"></div>
+            <div class="modal-actions">
+                <button class="btn btn-secondary" id="fbSkipBtn" onclick="closeFirebaseSetup()">Skip for now</button>
+                <button class="btn" onclick="saveFirebaseConfig()">🔥 Connect to Firebase</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Historical data loading overlay -->
+    <div class="fb-loading" id="fbLoading">
+        <div class="fb-spinner"></div>
+        <div class="fb-loading-text" id="fbLoadingText">Loading historical data from Firebase…</div>
+    </div>
+
     <!-- Status Bar -->
     <div class="status-bar">
         <div class="status-left">
@@ -718,40 +875,38 @@
     
     <script>
         // ============================================================
-        // MQTT + STORAGE CONFIGURATION
+        // CONSTANTS & MQTT
         // ============================================================
-        const MQTT_BROKER    = 'df7f72e09ae84a60aa37e2f4e19c7356.s1.eu.hivemq.cloud';
-        const MQTT_PORT      = 8884;
-        const MQTT_USERNAME  = 'ERI-Cluster';
-        const MQTT_PASSWORD  = 'Abc12345';
+        const MQTT_BROKER   = 'df7f72e09ae84a60aa37e2f4e19c7356.s1.eu.hivemq.cloud';
+        const MQTT_PORT     = 8884;
+        const MQTT_USERNAME = 'ERI-Cluster';
+        const MQTT_PASSWORD = 'Abc12345';
 
-        // localStorage keys (versioned to avoid stale-format conflicts)
-        const SK_EVENTS = 'eri_events_v3';
-        const SK_N1     = 'eri_n1_v3';
-        const SK_N2     = 'eri_n2_v3';
+        const SK_FB_CONFIG  = 'eri_fb_config_v1';  // localStorage key for Firebase config only
+        const SK_EVENTS_LCL = 'eri_events_local';   // localStorage fallback when Firebase not set up
 
-        // Max data points kept per node in memory + storage (~41 h at 1 Hz)
-        const MAX_STORED = 150000;
-        
-        let client           = null;
+        let mqttClient       = null;
+        let db               = null;     // Firebase database ref
+        let fbApp            = null;
+        let fbReady          = false;
+        let fbListeners      = [];       // refs to detach on re-init
+
         let THRESHOLD_UNSAFE = 11.5;
         let BUFFER_DURATION  = 5;
 
         // ============================================================
-        // NODE STATE
+        // NODE STATE  (allData is for in-memory chart; Firebase is source-of-truth)
         // ============================================================
         const nodes = {
             node1: {
                 id: 'node1', name: 'Ground Floor', online: false,
-                currentMagnitude: 0, maxMagnitude: 0, data: [],
-                chartData: { labels: [], magnitude: [] },
-                dataBuffer: [],  // rolling 10-min buffer for event capture
-                allData: []      // persistent timestamped pairs: [[epochMs, mag], ...]
+                currentMagnitude: 0, maxMagnitude: 0,
+                dataBuffer: [],   // rolling ~10-min buffer for event capture
+                allData: []       // in-memory cache: [[epochMs, mag], …] built from Firebase on load
             },
             node2: {
                 id: 'node2', name: 'Top Floor', online: false,
-                currentMagnitude: 0, maxMagnitude: 0, data: [],
-                chartData: { labels: [], magnitude: [] },
+                currentMagnitude: 0, maxMagnitude: 0,
                 dataBuffer: [],
                 allData: []
             }
@@ -761,45 +916,224 @@
         let unsafeEvents     = [];
         let isRecordingEvent = false;
         let eventStartTime   = null;
-        let eventEndTimeout  = null;   // post-event buffer delay timer
-        let eventCharts      = {};     // Chart.js instances keyed by event.id
+        let eventEndTimeout  = null;
+        let eventCharts      = {};
         let currentTimeSpan  = '24H';
-        let saveTimer        = null;
-        
+
         // ============================================================
         // CHART INITIALIZATION
         // ============================================================
-        const chartColors = { cyan: '#06b6d4', purple: '#a855f7', green: '#10b981', yellow: '#fbbf24', red: '#ef4444' };
-
         const commonOptions = {
-            responsive: true,
-            maintainAspectRatio: false,
+            responsive: true, maintainAspectRatio: false,
             plugins: { legend: { display: false } },
             scales: {
-                x: {
-                    ticks: { color: '#9ca3af', maxTicksLimit: 8, font: { size: 10 } },
-                    grid: { color: 'rgba(255, 255, 255, 0.05)' }
-                },
-                y: {
-                    ticks: { color: '#9ca3af' },
-                    grid: { color: 'rgba(255, 255, 255, 0.05)' },
-                    title: { display: true, text: 'Magnitude (m/s²)', color: '#9ca3af' }
-                }
+                x: { ticks: { color: '#9ca3af', maxTicksLimit: 8, font: { size: 10 } }, grid: { color: 'rgba(255,255,255,0.05)' } },
+                y: { ticks: { color: '#9ca3af' }, grid: { color: 'rgba(255,255,255,0.05)' }, title: { display: true, text: 'Magnitude (m/s²)', color: '#9ca3af' } }
             },
             animation: false
         };
 
         const node1Chart = new Chart(document.getElementById('node1Chart'), {
             type: 'line',
-            data: { labels: [], datasets: [{ label: 'Ground Floor', data: [], borderColor: chartColors.cyan, backgroundColor: chartColors.cyan + '33', borderWidth: 2, tension: 0.4, fill: true }] },
+            data: { labels: [], datasets: [{ label: 'Ground Floor', data: [], borderColor: '#06b6d4', backgroundColor: '#06b6d433', borderWidth: 2, tension: 0.4, fill: true }] },
+            options: commonOptions
+        });
+        const node2Chart = new Chart(document.getElementById('node2Chart'), {
+            type: 'line',
+            data: { labels: [], datasets: [{ label: 'Top Floor', data: [], borderColor: '#a855f7', backgroundColor: '#a855f733', borderWidth: 2, tension: 0.4, fill: true }] },
             options: commonOptions
         });
 
-        const node2Chart = new Chart(document.getElementById('node2Chart'), {
-            type: 'line',
-            data: { labels: [], datasets: [{ label: 'Top Floor', data: [], borderColor: chartColors.purple, backgroundColor: chartColors.purple + '33', borderWidth: 2, tension: 0.4, fill: true }] },
-            options: commonOptions
-        });
+        // ============================================================
+        // FIREBASE SETUP MODAL
+        // ============================================================
+        function showFirebaseSetup() {
+            document.getElementById('fbModal').classList.add('visible');
+            document.getElementById('fbSkipBtn').style.display = fbReady ? 'block' : 'block';
+            const saved = localStorage.getItem(SK_FB_CONFIG);
+            if (saved) document.getElementById('fbConfigInput').value = saved;
+        }
+
+        function closeFirebaseSetup() {
+            document.getElementById('fbModal').classList.remove('visible');
+        }
+
+        function saveFirebaseConfig() {
+            const raw = document.getElementById('fbConfigInput').value.trim();
+            const errEl = document.getElementById('fbModalError');
+            errEl.textContent = '';
+
+            let config;
+            try {
+                // Accept both plain object and const firebaseConfig = {...} formats
+                const cleaned = raw
+                    .replace(/^const\s+\w+\s*=\s*/, '')
+                    .replace(/^var\s+\w+\s*=\s*/, '')
+                    .replace(/^let\s+\w+\s*=\s*/, '')
+                    .replace(/;$/, '')
+                    .trim();
+                config = JSON.parse(cleaned);
+            } catch (e) {
+                // Try eval-style parse (keys without quotes)
+                try {
+                    config = Function('"use strict"; return (' + raw.replace(/^const\s+\w+\s*=\s*/, '').replace(/;$/, '') + ')')();
+                } catch (e2) {
+                    errEl.textContent = '❌ Could not parse config. Make sure you copied the full firebaseConfig object.';
+                    return;
+                }
+            }
+
+            if (!config.databaseURL) {
+                errEl.textContent = '❌ Missing databaseURL. Make sure your Firebase project has a Realtime Database enabled.';
+                return;
+            }
+
+            localStorage.setItem(SK_FB_CONFIG, JSON.stringify(config));
+            closeFirebaseSetup();
+            initFirebase(config);
+        }
+
+        // ============================================================
+        // FIREBASE INIT & LISTENERS
+        // ============================================================
+        function setFbBadge(state, text) {
+            const badge = document.getElementById('fbBadge');
+            badge.className = 'fb-badge ' + state;
+            document.getElementById('fbBadgeText').textContent = text;
+        }
+
+        function initFirebase(config) {
+            setFbBadge('syncing', 'Firebase: Connecting…');
+            try {
+                // Destroy existing app if re-initializing
+                if (fbApp) { firebase.app().delete(); fbApp = null; db = null; }
+                fbApp = firebase.initializeApp(config);
+                db    = firebase.database();
+
+                db.ref('.info/connected').on('value', snap => {
+                    if (snap.val() === true) {
+                        fbReady = true;
+                        setFbBadge('connected', 'Firebase: Synced ✓');
+                        loadHistoricalData();
+                    } else {
+                        setFbBadge('syncing', 'Firebase: Reconnecting…');
+                    }
+                });
+
+                // Listen for new events written by any device
+                db.ref('eri/events').on('child_added', snap => {
+                    const raw = snap.val();
+                    const ev  = hydrateEvent(raw);
+                    // Only add if not already in local list
+                    if (!unsafeEvents.find(e => e.id === ev.id)) {
+                        unsafeEvents.push(ev);
+                        unsafeEvents.sort((a, b) => b.timestamp - a.timestamp);
+                        updateHistoryUI();
+                    }
+                });
+
+            } catch (e) {
+                setFbBadge('error', 'Firebase: Error');
+                console.error('[ERI Firebase] Init error:', e);
+            }
+        }
+
+        function hydrateEvent(raw) {
+            return {
+                ...raw,
+                timestamp: new Date(raw.timestamp),
+                endTime:   new Date(raw.endTime),
+                node1Data: (raw.node1Data || []).map(d => ({ ...d, timestamp: new Date(d.timestamp) })),
+                node2Data: (raw.node2Data || []).map(d => ({ ...d, timestamp: new Date(d.timestamp) }))
+            };
+        }
+
+        // ============================================================
+        // HISTORICAL DATA LOAD (called once after Firebase connects)
+        // ============================================================
+        async function loadHistoricalData() {
+            showLoading('Loading all historical data from Firebase…');
+            try {
+                // Load raw readings for both nodes (all time)
+                for (const nodeId of ['node1', 'node2']) {
+                    updateLoadingText(`Loading ${nodes[nodeId].name} readings…`);
+                    const snap = await db.ref(`eri/readings/${nodeId}`).orderByKey().once('value');
+                    const val  = snap.val();
+                    if (val) {
+                        const pts = Object.entries(val).map(([k, v]) => [Number(k), v]);
+                        pts.sort((a, b) => a[0] - b[0]);
+                        nodes[nodeId].allData = pts;
+                        // Update max from history
+                        const maxHist = Math.max(...pts.map(p => p[1]));
+                        if (maxHist > nodes[nodeId].maxMagnitude) {
+                            nodes[nodeId].maxMagnitude = maxHist;
+                            document.getElementById(`${nodeId}Max`).textContent = maxHist.toFixed(2);
+                        }
+                    }
+                    console.log(`[ERI Firebase] Loaded ${nodes[nodeId].allData.length} pts for ${nodeId}`);
+                }
+
+                // Load all events
+                updateLoadingText('Loading event history…');
+                const evSnap = await db.ref('eri/events').orderByKey().once('value');
+                const evVal  = evSnap.val();
+                if (evVal) {
+                    unsafeEvents = Object.values(evVal).map(hydrateEvent);
+                    unsafeEvents.sort((a, b) => b.timestamp - a.timestamp);
+                }
+
+                updateHistoryUI();
+                updateSpanCharts();
+            } catch (e) {
+                console.error('[ERI Firebase] Load error:', e);
+                setFbBadge('error', 'Firebase: Load failed');
+            } finally {
+                hideLoading();
+            }
+        }
+
+        function showLoading(text) {
+            document.getElementById('fbLoadingText').textContent = text;
+            document.getElementById('fbLoading').classList.add('visible');
+        }
+        function updateLoadingText(text) {
+            document.getElementById('fbLoadingText').textContent = text;
+        }
+        function hideLoading() {
+            document.getElementById('fbLoading').classList.remove('visible');
+        }
+
+        // ============================================================
+        // FIREBASE WRITE HELPERS
+        // ============================================================
+        function fbWriteReading(nodeId, epochMs, magnitude) {
+            if (!fbReady || !db) return;
+            // Write raw reading (key = epochMs for efficient range queries)
+            db.ref(`eri/readings/${nodeId}/${epochMs}`).set(magnitude).catch(e => console.warn('[FB write]', e));
+            // Update hourly aggregate (peak max per hour)
+            const hourKey = Math.floor(epochMs / 3600000) * 3600000;
+            db.ref(`eri/agg/${nodeId}/hourly/${hourKey}`).transaction(cur => {
+                return (cur === null || magnitude > cur) ? magnitude : cur;
+            });
+            // Update daily aggregate
+            const d = new Date(epochMs);
+            const dayKey = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+            db.ref(`eri/agg/${nodeId}/daily/${dayKey}`).transaction(cur => {
+                return (cur === null || magnitude > cur) ? magnitude : cur;
+            });
+        }
+
+        function fbWriteEvent(event) {
+            if (!fbReady || !db) return;
+            const serialized = {
+                ...event,
+                timestamp: event.timestamp.toISOString(),
+                endTime:   event.endTime.toISOString(),
+                node1Data: event.node1Data.map(d => ({ ...d, timestamp: d.timestamp.toISOString() })),
+                node2Data: event.node2Data.map(d => ({ ...d, timestamp: d.timestamp.toISOString() }))
+            };
+            db.ref(`eri/events/${event.id}`).set(serialized).catch(e => console.warn('[FB event write]', e));
+        }
 
         // ============================================================
         // TAB SWITCHING & CONFIG
@@ -810,7 +1144,7 @@
             if (tabName === 'monitoring') {
                 document.querySelector('.nav-tab:nth-child(1)').classList.add('active');
                 document.getElementById('monitoringTab').classList.add('active');
-            } else if (tabName === 'history') {
+            } else {
                 document.querySelector('.nav-tab:nth-child(2)').classList.add('active');
                 document.getElementById('historyTab').classList.add('active');
             }
@@ -819,13 +1153,18 @@
         function applyThreshold() {
             THRESHOLD_UNSAFE = parseFloat(document.getElementById('thresholdUnsafe').value);
             BUFFER_DURATION  = parseInt(document.getElementById('bufferDuration').value);
-            alert(`✓ Configuration Applied\n\nUnsafe Threshold: ${THRESHOLD_UNSAFE} m/s²\nBuffer Duration: ±${BUFFER_DURATION} seconds`);
+            alert(`✓ Config Applied\n\nUnsafe Threshold: ${THRESHOLD_UNSAFE} m/s²\nBuffer Duration: ±${BUFFER_DURATION}s`);
         }
 
         // ============================================================
         // TIME SPAN SELECTOR
         // ============================================================
-        const spanLabels = { '24H': 'Showing last 24 hours · Live updates', '7D': 'Showing last 7 days · Hourly max', '30D': 'Showing last 30 days · 4-hour max', '1Y': 'Showing last 365 days · Daily max' };
+        const spanLabels = {
+            '24H':  'Showing last 24 hours · All raw readings',
+            '7D':   'Showing last 7 days · Hourly peak',
+            '30D':  'Showing last 30 days · Hourly peak',
+            '1Y':   'Showing last 365 days · Daily peak'
+        };
 
         function setTimeSpan(span) {
             currentTimeSpan = span;
@@ -835,136 +1174,117 @@
             updateSpanCharts();
         }
 
-        function getSpanData(nodeId) {
-            const all = nodes[nodeId].allData;   // [[epochMs, mag], ...]
-            const now = Date.now();
-            let cutoff, bucketMs;
-
-            switch (currentTimeSpan) {
-                case '24H': cutoff = now - 86400000;          bucketMs = null;      break;
-                case '7D':  cutoff = now - 7  * 86400000;     bucketMs = 3600000;   break; // 1-hour buckets
-                case '30D': cutoff = now - 30 * 86400000;     bucketMs = 14400000;  break; // 4-hour buckets
-                case '1Y':  cutoff = now - 365 * 86400000;    bucketMs = 86400000;  break; // 1-day buckets
-            }
-
-            const filtered = all.filter(d => d[0] >= cutoff);
-            if (filtered.length === 0) return { labels: [], data: [] };
-
-            if (!bucketMs) {
-                // 24H — downsample to max 600 display points for performance
-                const maxPts = 600;
-                const step   = Math.max(1, Math.floor(filtered.length / maxPts));
-                const pts    = [];
-                for (let i = 0; i < filtered.length; i += step) pts.push(filtered[i]);
-                return {
-                    labels: pts.map(d => new Date(d[0]).toLocaleTimeString()),
-                    data:   pts.map(d => d[1])
-                };
-            } else {
-                // Aggregate — take peak (max) per bucket
-                const buckets = {};
-                filtered.forEach(([ts, mag]) => {
-                    const k = Math.floor(ts / bucketMs) * bucketMs;
-                    if (buckets[k] === undefined || mag > buckets[k]) buckets[k] = mag;
-                });
-                const keys = Object.keys(buckets).map(Number).sort((a, b) => a - b);
-                return {
-                    labels: keys.map(k => formatBucketLabel(k)),
-                    data:   keys.map(k => buckets[k])
-                };
+        async function updateSpanCharts() {
+            for (const nodeId of ['node1', 'node2']) {
+                const { labels, data } = await getSpanData(nodeId);
+                const chart = nodeId === 'node1' ? node1Chart : node2Chart;
+                chart.data.labels           = labels;
+                chart.data.datasets[0].data = data;
+                chart.update('none');
             }
         }
 
-        function formatBucketLabel(ts) {
-            const d = new Date(ts);
+        async function getSpanData(nodeId) {
+            const now    = Date.now();
+            const node   = nodes[nodeId];
+
+            if (currentTimeSpan === '24H') {
+                // Use in-memory allData for fast live 24H view
+                const cutoff  = now - 86400000;
+                const pts     = node.allData.filter(d => d[0] >= cutoff);
+                const maxPts  = 600;
+                const step    = Math.max(1, Math.floor(pts.length / maxPts));
+                const sampled = [];
+                for (let i = 0; i < pts.length; i += step) sampled.push(pts[i]);
+                return {
+                    labels: sampled.map(d => new Date(d[0]).toLocaleTimeString()),
+                    data:   sampled.map(d => d[1])
+                };
+            }
+
+            // For 7D / 30D / 1Y — use Firebase aggregation buckets
+            if (!fbReady || !db) {
+                // Fallback to in-memory aggregation if Firebase not ready
+                return buildLocalAgg(nodeId);
+            }
+
+            let cutoff, aggPath, bucketMs;
+            switch (currentTimeSpan) {
+                case '7D':  cutoff = now - 7   * 86400000; aggPath = `eri/agg/${nodeId}/hourly`; bucketMs = 3600000;  break;
+                case '30D': cutoff = now - 30  * 86400000; aggPath = `eri/agg/${nodeId}/hourly`; bucketMs = 3600000;  break;
+                case '1Y':  cutoff = now - 365 * 86400000; aggPath = `eri/agg/${nodeId}/daily`;  bucketMs = 86400000; break;
+            }
+
+            try {
+                const snap = await db.ref(aggPath).orderByKey().startAt(String(cutoff)).once('value');
+                const val  = snap.val();
+                if (!val) return { labels: [], data: [] };
+                const keys = Object.keys(val).map(Number).sort((a, b) => a - b);
+
+                // For 30D use 4-hour grouping from hourly data
+                if (currentTimeSpan === '30D') {
+                    const grouped = {};
+                    keys.forEach(k => {
+                        const bucket = Math.floor(k / 14400000) * 14400000;
+                        if (grouped[bucket] === undefined || val[k] > grouped[bucket]) grouped[bucket] = val[k];
+                    });
+                    const gKeys = Object.keys(grouped).map(Number).sort((a, b) => a - b);
+                    return { labels: gKeys.map(k => fmtBucket(k)), data: gKeys.map(k => grouped[k]) };
+                }
+
+                return { labels: keys.map(k => fmtBucket(k)), data: keys.map(k => val[k]) };
+            } catch (e) {
+                console.warn('[ERI] Agg fetch failed, using local:', e);
+                return buildLocalAgg(nodeId);
+            }
+        }
+
+        function buildLocalAgg(nodeId) {
+            const now = Date.now();
+            let cutoff, bucketMs;
+            switch (currentTimeSpan) {
+                case '7D':  cutoff = now - 7   * 86400000; bucketMs = 3600000;  break;
+                case '30D': cutoff = now - 30  * 86400000; bucketMs = 14400000; break;
+                case '1Y':  cutoff = now - 365 * 86400000; bucketMs = 86400000; break;
+                default:    cutoff = now - 86400000;        bucketMs = null;
+            }
+            const pts = nodes[nodeId].allData.filter(d => d[0] >= cutoff);
+            if (!bucketMs) return { labels: pts.map(d => new Date(d[0]).toLocaleTimeString()), data: pts.map(d => d[1]) };
+            const buckets = {};
+            pts.forEach(([ts, mag]) => {
+                const k = Math.floor(ts / bucketMs) * bucketMs;
+                if (buckets[k] === undefined || mag > buckets[k]) buckets[k] = mag;
+            });
+            const keys = Object.keys(buckets).map(Number).sort((a, b) => a - b);
+            return { labels: keys.map(k => fmtBucket(k)), data: keys.map(k => buckets[k]) };
+        }
+
+        function fmtBucket(ts) {
+            const d  = new Date(ts);
             const mm = String(d.getMonth() + 1).padStart(2, '0');
             const dd = String(d.getDate()).padStart(2, '0');
             const hh = String(d.getHours()).padStart(2, '0');
-            if (currentTimeSpan === '7D')  return `${mm}/${dd} ${hh}:00`;
-            if (currentTimeSpan === '30D') return `${mm}/${dd} ${hh}:00`;
             if (currentTimeSpan === '1Y')  return `${mm}/${dd}`;
-            return d.toLocaleString();
-        }
-
-        function updateSpanCharts() {
-            ['node1', 'node2'].forEach(nodeId => {
-                const { labels, data } = getSpanData(nodeId);
-                const chart = nodeId === 'node1' ? node1Chart : node2Chart;
-                chart.data.labels               = labels;
-                chart.data.datasets[0].data     = data;
-                chart.update('none');
-            });
+            return `${mm}/${dd} ${hh}:00`;
         }
 
         // ============================================================
-        // PERSISTENT STORAGE (localStorage)
+        // CLEAR ALL DATA
         // ============================================================
-        function scheduleSave() {
-            if (saveTimer) clearTimeout(saveTimer);
-            saveTimer = setTimeout(saveToStorage, 10000); // debounce: save 10s after last point
-        }
-
-        function saveToStorage() {
-            try {
-                // Trim to MAX_STORED before saving
-                ['node1', 'node2'].forEach(id => {
-                    if (nodes[id].allData.length > MAX_STORED)
-                        nodes[id].allData = nodes[id].allData.slice(-MAX_STORED);
-                });
-                localStorage.setItem(SK_N1,     JSON.stringify(nodes.node1.allData));
-                localStorage.setItem(SK_N2,     JSON.stringify(nodes.node2.allData));
-                localStorage.setItem(SK_EVENTS, JSON.stringify(unsafeEvents));
-                console.log(`[ERI] Saved: ${nodes.node1.allData.length} pts N1, ${nodes.node2.allData.length} pts N2, ${unsafeEvents.length} events`);
-            } catch (e) {
-                console.warn('[ERI] Storage save failed — trimming data:', e);
-                // Emergency trim to half to free space
-                nodes.node1.allData = nodes.node1.allData.slice(-Math.floor(MAX_STORED / 2));
-                nodes.node2.allData = nodes.node2.allData.slice(-Math.floor(MAX_STORED / 2));
-                try { localStorage.setItem(SK_N1, JSON.stringify(nodes.node1.allData)); } catch (_) {}
-                try { localStorage.setItem(SK_N2, JSON.stringify(nodes.node2.allData)); } catch (_) {}
-            }
-        }
-
-        function loadFromStorage() {
-            // Load time-series data
-            try {
-                const n1 = localStorage.getItem(SK_N1);
-                if (n1) nodes.node1.allData = JSON.parse(n1);
-                const n2 = localStorage.getItem(SK_N2);
-                if (n2) nodes.node2.allData = JSON.parse(n2);
-            } catch (e) { console.warn('[ERI] Failed to load node data:', e); }
-
-            // Load event history — re-hydrate Date objects from ISO strings
-            try {
-                const ev = localStorage.getItem(SK_EVENTS);
-                if (ev) {
-                    unsafeEvents = JSON.parse(ev).map(e => ({
-                        ...e,
-                        timestamp: new Date(e.timestamp),
-                        endTime:   new Date(e.endTime),
-                        node1Data: (e.node1Data || []).map(d => ({ ...d, timestamp: new Date(d.timestamp) })),
-                        node2Data: (e.node2Data || []).map(d => ({ ...d, timestamp: new Date(d.timestamp) }))
-                    }));
-                }
-            } catch (e) { console.warn('[ERI] Failed to load events:', e); }
-
-            console.log(`[ERI] Loaded: ${nodes.node1.allData.length} N1 pts, ${nodes.node2.allData.length} N2 pts, ${unsafeEvents.length} events`);
-            updateSpanCharts();
-            updateHistoryUI();
-        }
-
         function clearAllData() {
-            if (!confirm('⚠️ Clear ALL recorded data and events?\n\nThis will erase all time-series data, event history, and charts. This cannot be undone.')) return;
+            if (!confirm('⚠️ Clear ALL recorded data, events, and Firebase entries?\n\nThis cannot be undone.')) return;
             unsafeEvents = [];
             nodes.node1.allData = []; nodes.node1.maxMagnitude = 0; nodes.node1.dataBuffer = [];
             nodes.node2.allData = []; nodes.node2.maxMagnitude = 0; nodes.node2.dataBuffer = [];
             document.getElementById('node1Max').textContent = '0.0';
             document.getElementById('node2Max').textContent = '0.0';
-            Object.values(eventCharts).forEach(c => c.destroy());
-            eventCharts = {};
-            localStorage.removeItem(SK_N1);
-            localStorage.removeItem(SK_N2);
-            localStorage.removeItem(SK_EVENTS);
+            Object.values(eventCharts).forEach(c => c.destroy()); eventCharts = {};
+            localStorage.removeItem(SK_EVENTS_LCL);
+            if (fbReady && db) {
+                db.ref('eri/readings').remove();
+                db.ref('eri/agg').remove();
+                db.ref('eri/events').remove();
+            }
             updateHistoryUI();
             updateSpanCharts();
         }
@@ -974,10 +1294,10 @@
         // ============================================================
         function connectMQTT() {
             const clientId = 'ERI_Enhanced_' + Math.random().toString(16).substr(2, 8);
-            client = new Paho.MQTT.Client(MQTT_BROKER, MQTT_PORT, '/mqtt', clientId);
-            client.onConnectionLost = onConnectionLost;
-            client.onMessageArrived = onMessageArrived;
-            client.connect({ userName: MQTT_USERNAME, password: MQTT_PASSWORD, onSuccess: onConnect, onFailure: onFailure, useSSL: true });
+            mqttClient = new Paho.MQTT.Client(MQTT_BROKER, MQTT_PORT, '/mqtt', clientId);
+            mqttClient.onConnectionLost = onConnectionLost;
+            mqttClient.onMessageArrived = onMessageArrived;
+            mqttClient.connect({ userName: MQTT_USERNAME, password: MQTT_PASSWORD, onSuccess: onConnect, onFailure: onFailure, useSSL: true });
             document.getElementById('connectBtn').disabled    = true;
             document.getElementById('connectBtn').textContent = '⏳ Connecting...';
         }
@@ -986,18 +1306,18 @@
             document.getElementById('connectBtn').textContent = '✓ Connected';
             document.getElementById('connectBtn').classList.remove('btn-success');
             document.getElementById('onlineStatus').textContent = 'Online';
-            client.subscribe('eri/earthquake/+/acceleration');
-            client.subscribe('eri/earthquake/+/status');
+            mqttClient.subscribe('eri/earthquake/+/acceleration');
+            mqttClient.subscribe('eri/earthquake/+/status');
             document.getElementById('statusInfo').textContent = 'Connected to MQTT broker, waiting for data...';
         }
 
         function onFailure(error) {
-            console.error('[ERI] Connection failed:', error);
+            console.error('[MQTT] Connection failed:', error);
             document.getElementById('connectBtn').disabled    = false;
             document.getElementById('connectBtn').textContent = '🔌 Reconnect';
         }
 
-        function onConnectionLost(resp) {
+        function onConnectionLost() {
             document.getElementById('connectBtn').disabled    = false;
             document.getElementById('connectBtn').textContent = '🔌 Reconnect';
             document.getElementById('connectBtn').classList.add('btn-success');
@@ -1015,16 +1335,10 @@
                 updateAccelerationData(nodeId, payload);
             } else if (type === 'status' && payload.status === 'online') {
                 nodes[nodeId].online = true;
-                updateNodeStatus(nodeId);
+                const el = document.getElementById(`${nodeId}Status`);
+                el.textContent = 'Online'; el.classList.remove('offline'); el.classList.add('online');
             }
             document.getElementById('lastUpdate').textContent = new Date().toLocaleTimeString();
-        }
-
-        function updateNodeStatus(nodeId) {
-            const el = document.getElementById(`${nodeId}Status`);
-            el.textContent = 'Online';
-            el.classList.remove('offline');
-            el.classList.add('online');
         }
 
         // ============================================================
@@ -1034,29 +1348,29 @@
             const node = nodes[nodeId];
             const { x, y, z, magnitude } = data;
             const now = new Date();
+            const epochMs = now.getTime();
 
             node.currentMagnitude = magnitude;
-            if (magnitude > node.maxMagnitude) node.maxMagnitude = magnitude;
+            if (magnitude > node.maxMagnitude) {
+                node.maxMagnitude = magnitude;
+                document.getElementById(`${nodeId}Max`).textContent = magnitude.toFixed(2);
+            }
 
-            // Rolling dataBuffer for event capture (10-min window = 600 pts at 1Hz)
+            // Rolling dataBuffer for event capture (10-min = 600 pts at 1Hz)
             node.dataBuffer.push({ timestamp: now, magnitude, x, y, z });
             if (node.dataBuffer.length > 600) node.dataBuffer.shift();
 
-            // Persistent allData — compact pairs for storage efficiency
-            node.allData.push([now.getTime(), magnitude]);
-            if (node.allData.length > MAX_STORED) node.allData.shift();
+            // In-memory allData for chart
+            node.allData.push([epochMs, magnitude]);
 
-            // Update stat displays
+            // Write to Firebase (raw + aggregates)
+            fbWriteReading(nodeId, epochMs, magnitude);
+
             document.getElementById(`${nodeId}Current`).textContent = magnitude.toFixed(2);
-            document.getElementById(`${nodeId}Max`).textContent     = node.maxMagnitude.toFixed(2);
 
-            // Redraw charts for active time span
-            updateSpanCharts();
+            // Only redraw the 24H chart in real-time (others need explicit fetch)
+            if (currentTimeSpan === '24H') updateSpanCharts();
 
-            // Debounced localStorage save
-            scheduleSave();
-
-            // Threshold / event detection
             checkStructureStatus();
         }
 
@@ -1069,28 +1383,19 @@
             const infoEl   = document.getElementById('overallStatusInfo');
 
             if (maxMag >= THRESHOLD_UNSAFE) {
-                // If a post-event timeout was running, cancel it — we're unsafe again
-                if (eventEndTimeout) {
-                    clearTimeout(eventEndTimeout);
-                    eventEndTimeout = null;
-                }
-                if (structureStatus === 'SAFE') {
-                    structureStatus = 'UNSAFE';
-                    startUnsafeEvent();
-                }
+                if (eventEndTimeout) { clearTimeout(eventEndTimeout); eventEndTimeout = null; }
+                if (structureStatus === 'SAFE') { structureStatus = 'UNSAFE'; startUnsafeEvent(); }
                 statusEl.textContent = 'UNSAFE';
                 statusEl.className   = 'overall-status-value unsafe';
                 infoEl.textContent   = `⚠️ Threshold exceeded! Max: ${maxMag.toFixed(2)} m/s² (Threshold: ${THRESHOLD_UNSAFE} m/s²)`;
                 document.getElementById('statusInfo').textContent = '⚠️ UNSAFE CONDITION — Recording event data...';
-
             } else {
-                // Was UNSAFE and now readings are safe — schedule close after post-buffer delay
                 if (structureStatus === 'UNSAFE' && !eventEndTimeout) {
                     const endTime = new Date();
                     eventEndTimeout = setTimeout(() => {
                         endUnsafeEvent(endTime);
                         eventEndTimeout = null;
-                    }, BUFFER_DURATION * 1000);  // wait BUFFER_DURATION s so we capture post-event data
+                    }, BUFFER_DURATION * 1000);
                 }
                 structureStatus      = 'SAFE';
                 statusEl.textContent = 'SAFE';
@@ -1103,7 +1408,6 @@
         function startUnsafeEvent() {
             isRecordingEvent = true;
             eventStartTime   = new Date();
-            console.log('[ERI] Event started:', eventStartTime.toISOString());
         }
 
         function endUnsafeEvent(endTime) {
@@ -1112,8 +1416,6 @@
 
             const bufMs        = BUFFER_DURATION * 1000;
             const captureStart = new Date(eventStartTime.getTime() - bufMs);
-            // Post-event: we waited BUFFER_DURATION seconds before calling this,
-            // so dataBuffer now contains data up to now (≈ endTime + BUFFER_DURATION)
             const captureEnd   = new Date(endTime.getTime() + bufMs);
 
             const node1Data = nodes.node1.dataBuffer.filter(d => d.timestamp >= captureStart && d.timestamp <= captureEnd);
@@ -1122,7 +1424,7 @@
             const event = {
                 id:             unsafeEvents.length + 1,
                 timestamp:      eventStartTime,
-                endTime:        endTime,
+                endTime,
                 duration:       (endTime - eventStartTime) / 1000,
                 maxMagnitude:   Math.max(nodes.node1.maxMagnitude, nodes.node2.maxMagnitude),
                 node1Data,
@@ -1131,10 +1433,14 @@
                 bufferDuration: BUFFER_DURATION
             };
 
-            unsafeEvents.unshift(event);
-            updateHistoryUI();
-            saveToStorage();  // Immediate save on new event
-            console.log('[ERI] Event recorded:', event.id, `(${event.duration.toFixed(1)}s, ${node1Data.length + node2Data.length} pts)`);
+            // Write to Firebase (other devices will receive via child_added listener)
+            fbWriteEvent(event);
+
+            // Add locally only if Firebase is not ready (avoid duplicate from listener)
+            if (!fbReady) {
+                unsafeEvents.unshift(event);
+                updateHistoryUI();
+            }
         }
 
         // ============================================================
@@ -1146,8 +1452,6 @@
                 ? unsafeEvents[0].timestamp.toLocaleString() : 'Never';
 
             const historyList = document.getElementById('historyList');
-
-            // Destroy old chart instances to prevent memory leaks
             Object.values(eventCharts).forEach(c => c.destroy());
             eventCharts = {};
 
@@ -1177,22 +1481,10 @@
                             <div class="history-badge">UNSAFE EVENT #${event.id}</div>
                         </div>
                         <div class="history-details">
-                            <div class="history-detail">
-                                <div class="history-detail-label">Duration</div>
-                                <div class="history-detail-value">${event.duration.toFixed(1)}s</div>
-                            </div>
-                            <div class="history-detail">
-                                <div class="history-detail-label">Max Magnitude</div>
-                                <div class="history-detail-value">${event.maxMagnitude.toFixed(2)} m/s²</div>
-                            </div>
-                            <div class="history-detail">
-                                <div class="history-detail-label">Structure</div>
-                                <div class="history-detail-value">${event.structureName}</div>
-                            </div>
-                            <div class="history-detail">
-                                <div class="history-detail-label">Data Points</div>
-                                <div class="history-detail-value">${event.node1Data.length + event.node2Data.length}</div>
-                            </div>
+                            <div class="history-detail"><div class="history-detail-label">Duration</div><div class="history-detail-value">${event.duration.toFixed(1)}s</div></div>
+                            <div class="history-detail"><div class="history-detail-label">Max Magnitude</div><div class="history-detail-value">${event.maxMagnitude.toFixed(2)} m/s²</div></div>
+                            <div class="history-detail"><div class="history-detail-label">Structure</div><div class="history-detail-value">${event.structureName}</div></div>
+                            <div class="history-detail"><div class="history-detail-label">Data Points</div><div class="history-detail-value">${event.node1Data.length + event.node2Data.length}</div></div>
                         </div>
                         <div class="history-data-buffer">
                             <div class="history-data-title">📊 Recorded Data (±${buf}s buffer)</div>
@@ -1202,35 +1494,30 @@
                             </div>
                             <div class="event-chart-header" style="margin-top:1rem;">
                                 <span class="event-chart-title">⏱ Acceleration Timeline (±${buf}s window)</span>
-                                <span class="event-window-label">🔴 Shaded = Unsafe Event Duration</span>
+                                <span class="event-window-label">🔴 Shaded = Unsafe Duration</span>
                             </div>
                             <div class="event-chart-legend">
                                 <span><span class="legend-dot" style="background:#06b6d4;"></span>Ground Floor</span>
                                 <span><span class="legend-dot" style="background:#a855f7;"></span>Top Floor</span>
-                                <span><span class="legend-dot" style="background:#ef4444;border-radius:0;height:2px;width:14px;display:inline-block;vertical-align:middle;margin-right:4px;"></span>Threshold</span>
+                                <span><span style="display:inline-block;width:14px;height:2px;background:#ef4444;margin-right:4px;vertical-align:middle;"></span>Threshold</span>
                             </div>
-                            <div class="event-chart-container">
-                                <canvas id="${cid}"></canvas>
-                            </div>
+                            <div class="event-chart-container"><canvas id="${cid}"></canvas></div>
                         </div>
                     </div>`;
             });
 
-            // Render event charts after DOM is populated
             unsafeEvents.forEach(event => renderEventChart(event));
         }
 
         // ============================================================
-        // EVENT DETAIL CHART (±buffer window with shaded unsafe region)
+        // EVENT DETAIL CHART
         // ============================================================
         function renderEventChart(event) {
             const canvas = document.getElementById(`eventChart_${event.id}`);
             if (!canvas) return;
-
             const buf            = event.bufferDuration || BUFFER_DURATION;
             const captureStartMs = event.timestamp.getTime() - buf * 1000;
 
-            // Build sorted unique timestamp list from both nodes
             const timeSet = new Set();
             event.node1Data.forEach(d => timeSet.add(d.timestamp.getTime()));
             event.node2Data.forEach(d => timeSet.add(d.timestamp.getTime()));
@@ -1244,8 +1531,7 @@
             }
 
             const labels    = sortedMs.map(ms => ((ms - captureStartMs) / 1000).toFixed(1) + 's');
-            const n1Map     = {};
-            const n2Map     = {};
+            const n1Map = {}, n2Map = {};
             event.node1Data.forEach(d => { n1Map[d.timestamp.getTime()] = d.magnitude; });
             event.node2Data.forEach(d => { n2Map[d.timestamp.getTime()] = d.magnitude; });
             const n1Values  = sortedMs.map(ms => n1Map[ms] !== undefined ? n1Map[ms] : null);
@@ -1255,7 +1541,6 @@
             const eventStartMs = event.timestamp.getTime();
             const eventEndMs   = event.endTime.getTime();
 
-            // Custom plugin: shade the unsafe duration region
             const shadingPlugin = {
                 id: `shading_${event.id}`,
                 beforeDraw(chart) {
@@ -1278,9 +1563,8 @@
                 }
             };
 
-            const chart = new Chart(canvas, {
-                type: 'line',
-                plugins: [shadingPlugin],
+            eventCharts[event.id] = new Chart(canvas, {
+                type: 'line', plugins: [shadingPlugin],
                 data: {
                     labels,
                     datasets: [
@@ -1294,11 +1578,8 @@
                     interaction: { mode: 'index', intersect: false },
                     plugins: {
                         legend: { display: false },
-                        tooltip: {
-                            backgroundColor: '#1a2332', borderColor: '#2d3748', borderWidth: 1,
-                            titleColor: '#9ca3af', bodyColor: '#ffffff', padding: 10,
-                            callbacks: { label: ctx => ` ${ctx.dataset.label}: ${ctx.parsed.y !== null ? ctx.parsed.y.toFixed(3) + ' m/s²' : 'N/A'}` }
-                        }
+                        tooltip: { backgroundColor: '#1a2332', borderColor: '#2d3748', borderWidth: 1, titleColor: '#9ca3af', bodyColor: '#fff', padding: 10,
+                            callbacks: { label: ctx => ` ${ctx.dataset.label}: ${ctx.parsed.y !== null ? ctx.parsed.y.toFixed(3)+' m/s²' : 'N/A'}` } }
                     },
                     scales: {
                         x: { ticks: { color: '#6b7280', maxTicksLimit: 12, font: { size: 10 } }, grid: { color: 'rgba(255,255,255,0.04)' }, title: { display: true, text: 'Time from capture start (s)', color: '#6b7280', font: { size: 10 } } },
@@ -1307,16 +1588,28 @@
                     animation: false
                 }
             });
-
-            eventCharts[event.id] = chart;
         }
 
         // ============================================================
-        // INIT — load persisted data, then connect
+        // INIT
         // ============================================================
         window.addEventListener('load', () => {
-            loadFromStorage();   // Restore data and events from localStorage
-            connectMQTT();       // Auto-connect for live updates
+            // Load Firebase config from localStorage (one-time setup)
+            const savedConfig = localStorage.getItem(SK_FB_CONFIG);
+            if (savedConfig) {
+                try {
+                    initFirebase(JSON.parse(savedConfig));
+                } catch (e) {
+                    console.warn('[ERI] Saved Firebase config invalid, showing setup modal');
+                    setTimeout(showFirebaseSetup, 800);
+                }
+            } else {
+                // First time — show setup modal after short delay
+                setTimeout(showFirebaseSetup, 600);
+            }
+
+            // Always auto-connect MQTT for live sensor data
+            connectMQTT();
         });
     </script>
 </body>
