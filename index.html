@@ -421,51 +421,6 @@
             height: 150px;
         }
         
-        .event-chart-container {
-            margin-top: 1.25rem;
-            height: 220px;
-            position: relative;
-        }
-        
-        .event-chart-header {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            margin-bottom: 0.5rem;
-        }
-        
-        .event-chart-title {
-            font-size: 0.75rem;
-            color: var(--text-muted);
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }
-        
-        .event-chart-legend {
-            display: flex;
-            gap: 1rem;
-            font-size: 0.7rem;
-            color: var(--text-secondary);
-        }
-        
-        .legend-dot {
-            display: inline-block;
-            width: 8px;
-            height: 8px;
-            border-radius: 50%;
-            margin-right: 4px;
-            vertical-align: middle;
-        }
-        
-        .event-window-label {
-            font-size: 0.7rem;
-            color: var(--accent-red);
-            background: rgba(239, 68, 68, 0.1);
-            padding: 2px 6px;
-            border-radius: 4px;
-            border: 1px solid rgba(239, 68, 68, 0.3);
-        }
-        
         /* Scrollbar Styling */
         .history-list::-webkit-scrollbar {
             width: 10px;
@@ -533,6 +488,51 @@
             50% { opacity: 0.5; }
         }
         
+        /* Time Span Selector */
+        .span-selector {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-bottom: 1.25rem;
+            padding: 0.75rem 1rem;
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+        }
+
+        .span-label {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-right: 0.5rem;
+        }
+
+        .span-btn {
+            padding: 0.4rem 1rem;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            color: var(--text-secondary);
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.8rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .span-btn:hover { color: var(--text-primary); border-color: var(--accent-cyan); }
+        .span-btn.active { background: var(--accent-cyan); border-color: var(--accent-cyan); color: #fff; }
+
+        .span-info {
+            margin-left: auto;
+            font-size: 0.75rem;
+            color: var(--text-muted);
+        }
+
+        .btn-danger { background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.4); color: var(--accent-red); }
+        .btn-danger:hover { background: rgba(239, 68, 68, 0.25); transform: translateY(-2px); }
+
         /* Responsive */
         @media (max-width: 1200px) {
             .nodes-grid {
@@ -614,6 +614,16 @@
                 <div class="overall-status-info" id="overallStatusInfo">All nodes operating within safe parameters</div>
             </div>
             
+            <!-- Time Span Selector -->
+            <div class="span-selector">
+                <span class="span-label">📅 View</span>
+                <button class="span-btn active" id="span24H" onclick="setTimeSpan('24H')">24H</button>
+                <button class="span-btn" id="span7D"  onclick="setTimeSpan('7D')">7 Days</button>
+                <button class="span-btn" id="span30D" onclick="setTimeSpan('30D')">30 Days</button>
+                <button class="span-btn" id="span1Y"  onclick="setTimeSpan('1Y')">1 Year</button>
+                <span class="span-info" id="spanInfo">Showing last 24 hours · Live updates</span>
+            </div>
+
             <!-- Both Nodes Side by Side -->
             <div class="nodes-grid">
                 <!-- Node 1 - Ground Floor -->
@@ -674,9 +684,12 @@
         <div id="historyTab" class="tab-content">
             <div class="history-header">
                 <div class="history-title">⚠️ Unsafe Events History</div>
-                <div class="history-stats">
-                    <span>Total Events: <strong id="historyCount">0</strong></span>
-                    <span>Last Event: <strong id="lastEventTime">Never</strong></span>
+                <div style="display:flex;align-items:center;gap:1.5rem;">
+                    <div class="history-stats">
+                        <span>Total Events: <strong id="historyCount">0</strong></span>
+                        <span>Last Event: <strong id="lastEventTime">Never</strong></span>
+                    </div>
+                    <button class="btn btn-danger" onclick="clearAllData()" style="padding:0.5rem 1rem;font-size:0.8rem;">🗑 Clear All Data</button>
                 </div>
             </div>
             <div class="history-list" id="historyList">
@@ -704,63 +717,67 @@
     </div>
     
     <script>
-        // MQTT Configuration
-        const MQTT_BROKER = 'df7f72e09ae84a60aa37e2f4e19c7356.s1.eu.hivemq.cloud';
-        const MQTT_PORT = 8884;
-        const MQTT_USERNAME = 'ERI-Cluster';
-        const MQTT_PASSWORD = 'Abc12345';
+        // ============================================================
+        // MQTT + STORAGE CONFIGURATION
+        // ============================================================
+        const MQTT_BROKER    = 'df7f72e09ae84a60aa37e2f4e19c7356.s1.eu.hivemq.cloud';
+        const MQTT_PORT      = 8884;
+        const MQTT_USERNAME  = 'ERI-Cluster';
+        const MQTT_PASSWORD  = 'Abc12345';
+
+        // localStorage keys (versioned to avoid stale-format conflicts)
+        const SK_EVENTS = 'eri_events_v3';
+        const SK_N1     = 'eri_n1_v3';
+        const SK_N2     = 'eri_n2_v3';
+
+        // Max data points kept per node in memory + storage (~41 h at 1 Hz)
+        const MAX_STORED = 150000;
         
-        let client = null;
+        let client           = null;
         let THRESHOLD_UNSAFE = 11.5;
-        let BUFFER_DURATION = 5;
-        let MAX_POINTS = 50;
-        
-        // Node data structures
+        let BUFFER_DURATION  = 5;
+
+        // ============================================================
+        // NODE STATE
+        // ============================================================
         const nodes = {
             node1: {
-                id: 'node1',
-                name: 'Ground Floor',
-                online: false,
-                currentMagnitude: 0,
-                maxMagnitude: 0,
-                data: [],
+                id: 'node1', name: 'Ground Floor', online: false,
+                currentMagnitude: 0, maxMagnitude: 0, data: [],
                 chartData: { labels: [], magnitude: [] },
-                dataBuffer: [] // Rolling buffer for history
+                dataBuffer: [],  // rolling 10-min buffer for event capture
+                allData: []      // persistent timestamped pairs: [[epochMs, mag], ...]
             },
             node2: {
-                id: 'node2',
-                name: 'Top Floor',
-                online: false,
-                currentMagnitude: 0,
-                maxMagnitude: 0,
-                data: [],
+                id: 'node2', name: 'Top Floor', online: false,
+                currentMagnitude: 0, maxMagnitude: 0, data: [],
                 chartData: { labels: [], magnitude: [] },
-                dataBuffer: []
+                dataBuffer: [],
+                allData: []
             }
         };
-        
-        let structureStatus = 'SAFE';
-        let unsafeEvents = [];
+
+        let structureStatus  = 'SAFE';
+        let unsafeEvents     = [];
         let isRecordingEvent = false;
-        let eventStartTime = null;
-        let eventCharts = {}; // Track Chart.js instances per event to avoid memory leaks
+        let eventStartTime   = null;
+        let eventEndTimeout  = null;   // post-event buffer delay timer
+        let eventCharts      = {};     // Chart.js instances keyed by event.id
+        let currentTimeSpan  = '24H';
+        let saveTimer        = null;
         
-        // Initialize Charts
-        const chartColors = {
-            cyan: '#06b6d4',
-            purple: '#a855f7',
-            green: '#10b981',
-            yellow: '#fbbf24',
-            red: '#ef4444'
-        };
-        
+        // ============================================================
+        // CHART INITIALIZATION
+        // ============================================================
+        const chartColors = { cyan: '#06b6d4', purple: '#a855f7', green: '#10b981', yellow: '#fbbf24', red: '#ef4444' };
+
         const commonOptions = {
             responsive: true,
             maintainAspectRatio: false,
             plugins: { legend: { display: false } },
             scales: {
                 x: {
-                    ticks: { color: '#9ca3af', maxTicksLimit: 8 },
+                    ticks: { color: '#9ca3af', maxTicksLimit: 8, font: { size: 10 } },
                     grid: { color: 'rgba(255, 255, 255, 0.05)' }
                 },
                 y: {
@@ -771,46 +788,25 @@
             },
             animation: false
         };
-        
+
         const node1Chart = new Chart(document.getElementById('node1Chart'), {
             type: 'line',
-            data: {
-                labels: [],
-                datasets: [{
-                    label: 'Ground Floor',
-                    data: [],
-                    borderColor: chartColors.cyan,
-                    backgroundColor: chartColors.cyan + '33',
-                    borderWidth: 2,
-                    tension: 0.4,
-                    fill: true
-                }]
-            },
+            data: { labels: [], datasets: [{ label: 'Ground Floor', data: [], borderColor: chartColors.cyan, backgroundColor: chartColors.cyan + '33', borderWidth: 2, tension: 0.4, fill: true }] },
             options: commonOptions
         });
-        
+
         const node2Chart = new Chart(document.getElementById('node2Chart'), {
             type: 'line',
-            data: {
-                labels: [],
-                datasets: [{
-                    label: 'Top Floor',
-                    data: [],
-                    borderColor: chartColors.purple,
-                    backgroundColor: chartColors.purple + '33',
-                    borderWidth: 2,
-                    tension: 0.4,
-                    fill: true
-                }]
-            },
+            data: { labels: [], datasets: [{ label: 'Top Floor', data: [], borderColor: chartColors.purple, backgroundColor: chartColors.purple + '33', borderWidth: 2, tension: 0.4, fill: true }] },
             options: commonOptions
         });
-        
-        // Tab switching
+
+        // ============================================================
+        // TAB SWITCHING & CONFIG
+        // ============================================================
         function switchTab(tabName) {
-            document.querySelectorAll('.nav-tab').forEach(tab => tab.classList.remove('active'));
-            document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
-            
+            document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
             if (tabName === 'monitoring') {
                 document.querySelector('.nav-tab:nth-child(1)').classList.add('active');
                 document.getElementById('monitoringTab').classList.add('active');
@@ -819,463 +815,508 @@
                 document.getElementById('historyTab').classList.add('active');
             }
         }
-        
-        // Apply threshold configuration
+
         function applyThreshold() {
             THRESHOLD_UNSAFE = parseFloat(document.getElementById('thresholdUnsafe').value);
-            BUFFER_DURATION = parseInt(document.getElementById('bufferDuration').value);
-            
+            BUFFER_DURATION  = parseInt(document.getElementById('bufferDuration').value);
             alert(`✓ Configuration Applied\n\nUnsafe Threshold: ${THRESHOLD_UNSAFE} m/s²\nBuffer Duration: ±${BUFFER_DURATION} seconds`);
         }
-        
-        // MQTT Functions
+
+        // ============================================================
+        // TIME SPAN SELECTOR
+        // ============================================================
+        const spanLabels = { '24H': 'Showing last 24 hours · Live updates', '7D': 'Showing last 7 days · Hourly max', '30D': 'Showing last 30 days · 4-hour max', '1Y': 'Showing last 365 days · Daily max' };
+
+        function setTimeSpan(span) {
+            currentTimeSpan = span;
+            document.querySelectorAll('.span-btn').forEach(b => b.classList.remove('active'));
+            document.getElementById('span' + span).classList.add('active');
+            document.getElementById('spanInfo').textContent = spanLabels[span];
+            updateSpanCharts();
+        }
+
+        function getSpanData(nodeId) {
+            const all = nodes[nodeId].allData;   // [[epochMs, mag], ...]
+            const now = Date.now();
+            let cutoff, bucketMs;
+
+            switch (currentTimeSpan) {
+                case '24H': cutoff = now - 86400000;          bucketMs = null;      break;
+                case '7D':  cutoff = now - 7  * 86400000;     bucketMs = 3600000;   break; // 1-hour buckets
+                case '30D': cutoff = now - 30 * 86400000;     bucketMs = 14400000;  break; // 4-hour buckets
+                case '1Y':  cutoff = now - 365 * 86400000;    bucketMs = 86400000;  break; // 1-day buckets
+            }
+
+            const filtered = all.filter(d => d[0] >= cutoff);
+            if (filtered.length === 0) return { labels: [], data: [] };
+
+            if (!bucketMs) {
+                // 24H — downsample to max 600 display points for performance
+                const maxPts = 600;
+                const step   = Math.max(1, Math.floor(filtered.length / maxPts));
+                const pts    = [];
+                for (let i = 0; i < filtered.length; i += step) pts.push(filtered[i]);
+                return {
+                    labels: pts.map(d => new Date(d[0]).toLocaleTimeString()),
+                    data:   pts.map(d => d[1])
+                };
+            } else {
+                // Aggregate — take peak (max) per bucket
+                const buckets = {};
+                filtered.forEach(([ts, mag]) => {
+                    const k = Math.floor(ts / bucketMs) * bucketMs;
+                    if (buckets[k] === undefined || mag > buckets[k]) buckets[k] = mag;
+                });
+                const keys = Object.keys(buckets).map(Number).sort((a, b) => a - b);
+                return {
+                    labels: keys.map(k => formatBucketLabel(k)),
+                    data:   keys.map(k => buckets[k])
+                };
+            }
+        }
+
+        function formatBucketLabel(ts) {
+            const d = new Date(ts);
+            const mm = String(d.getMonth() + 1).padStart(2, '0');
+            const dd = String(d.getDate()).padStart(2, '0');
+            const hh = String(d.getHours()).padStart(2, '0');
+            if (currentTimeSpan === '7D')  return `${mm}/${dd} ${hh}:00`;
+            if (currentTimeSpan === '30D') return `${mm}/${dd} ${hh}:00`;
+            if (currentTimeSpan === '1Y')  return `${mm}/${dd}`;
+            return d.toLocaleString();
+        }
+
+        function updateSpanCharts() {
+            ['node1', 'node2'].forEach(nodeId => {
+                const { labels, data } = getSpanData(nodeId);
+                const chart = nodeId === 'node1' ? node1Chart : node2Chart;
+                chart.data.labels               = labels;
+                chart.data.datasets[0].data     = data;
+                chart.update('none');
+            });
+        }
+
+        // ============================================================
+        // PERSISTENT STORAGE (localStorage)
+        // ============================================================
+        function scheduleSave() {
+            if (saveTimer) clearTimeout(saveTimer);
+            saveTimer = setTimeout(saveToStorage, 10000); // debounce: save 10s after last point
+        }
+
+        function saveToStorage() {
+            try {
+                // Trim to MAX_STORED before saving
+                ['node1', 'node2'].forEach(id => {
+                    if (nodes[id].allData.length > MAX_STORED)
+                        nodes[id].allData = nodes[id].allData.slice(-MAX_STORED);
+                });
+                localStorage.setItem(SK_N1,     JSON.stringify(nodes.node1.allData));
+                localStorage.setItem(SK_N2,     JSON.stringify(nodes.node2.allData));
+                localStorage.setItem(SK_EVENTS, JSON.stringify(unsafeEvents));
+                console.log(`[ERI] Saved: ${nodes.node1.allData.length} pts N1, ${nodes.node2.allData.length} pts N2, ${unsafeEvents.length} events`);
+            } catch (e) {
+                console.warn('[ERI] Storage save failed — trimming data:', e);
+                // Emergency trim to half to free space
+                nodes.node1.allData = nodes.node1.allData.slice(-Math.floor(MAX_STORED / 2));
+                nodes.node2.allData = nodes.node2.allData.slice(-Math.floor(MAX_STORED / 2));
+                try { localStorage.setItem(SK_N1, JSON.stringify(nodes.node1.allData)); } catch (_) {}
+                try { localStorage.setItem(SK_N2, JSON.stringify(nodes.node2.allData)); } catch (_) {}
+            }
+        }
+
+        function loadFromStorage() {
+            // Load time-series data
+            try {
+                const n1 = localStorage.getItem(SK_N1);
+                if (n1) nodes.node1.allData = JSON.parse(n1);
+                const n2 = localStorage.getItem(SK_N2);
+                if (n2) nodes.node2.allData = JSON.parse(n2);
+            } catch (e) { console.warn('[ERI] Failed to load node data:', e); }
+
+            // Load event history — re-hydrate Date objects from ISO strings
+            try {
+                const ev = localStorage.getItem(SK_EVENTS);
+                if (ev) {
+                    unsafeEvents = JSON.parse(ev).map(e => ({
+                        ...e,
+                        timestamp: new Date(e.timestamp),
+                        endTime:   new Date(e.endTime),
+                        node1Data: (e.node1Data || []).map(d => ({ ...d, timestamp: new Date(d.timestamp) })),
+                        node2Data: (e.node2Data || []).map(d => ({ ...d, timestamp: new Date(d.timestamp) }))
+                    }));
+                }
+            } catch (e) { console.warn('[ERI] Failed to load events:', e); }
+
+            console.log(`[ERI] Loaded: ${nodes.node1.allData.length} N1 pts, ${nodes.node2.allData.length} N2 pts, ${unsafeEvents.length} events`);
+            updateSpanCharts();
+            updateHistoryUI();
+        }
+
+        function clearAllData() {
+            if (!confirm('⚠️ Clear ALL recorded data and events?\n\nThis will erase all time-series data, event history, and charts. This cannot be undone.')) return;
+            unsafeEvents = [];
+            nodes.node1.allData = []; nodes.node1.maxMagnitude = 0; nodes.node1.dataBuffer = [];
+            nodes.node2.allData = []; nodes.node2.maxMagnitude = 0; nodes.node2.dataBuffer = [];
+            document.getElementById('node1Max').textContent = '0.0';
+            document.getElementById('node2Max').textContent = '0.0';
+            Object.values(eventCharts).forEach(c => c.destroy());
+            eventCharts = {};
+            localStorage.removeItem(SK_N1);
+            localStorage.removeItem(SK_N2);
+            localStorage.removeItem(SK_EVENTS);
+            updateHistoryUI();
+            updateSpanCharts();
+        }
+
+        // ============================================================
+        // MQTT
+        // ============================================================
         function connectMQTT() {
             const clientId = 'ERI_Enhanced_' + Math.random().toString(16).substr(2, 8);
             client = new Paho.MQTT.Client(MQTT_BROKER, MQTT_PORT, '/mqtt', clientId);
-            
             client.onConnectionLost = onConnectionLost;
             client.onMessageArrived = onMessageArrived;
-            
-            client.connect({
-                userName: MQTT_USERNAME,
-                password: MQTT_PASSWORD,
-                onSuccess: onConnect,
-                onFailure: onFailure,
-                useSSL: true
-            });
-            
-            document.getElementById('connectBtn').disabled = true;
+            client.connect({ userName: MQTT_USERNAME, password: MQTT_PASSWORD, onSuccess: onConnect, onFailure: onFailure, useSSL: true });
+            document.getElementById('connectBtn').disabled    = true;
             document.getElementById('connectBtn').textContent = '⏳ Connecting...';
         }
-        
+
         function onConnect() {
-            console.log('Connected to HiveMQ Cloud');
             document.getElementById('connectBtn').textContent = '✓ Connected';
             document.getElementById('connectBtn').classList.remove('btn-success');
             document.getElementById('onlineStatus').textContent = 'Online';
-            
-            // Subscribe to all node topics
             client.subscribe('eri/earthquake/+/acceleration');
             client.subscribe('eri/earthquake/+/status');
-            
             document.getElementById('statusInfo').textContent = 'Connected to MQTT broker, waiting for data...';
         }
-        
+
         function onFailure(error) {
-            console.error('Connection failed:', error);
-            document.getElementById('connectBtn').disabled = false;
+            console.error('[ERI] Connection failed:', error);
+            document.getElementById('connectBtn').disabled    = false;
             document.getElementById('connectBtn').textContent = '🔌 Reconnect';
         }
-        
-        function onConnectionLost(responseObject) {
-            console.log('Connection lost:', responseObject.errorMessage);
-            document.getElementById('connectBtn').disabled = false;
+
+        function onConnectionLost(resp) {
+            document.getElementById('connectBtn').disabled    = false;
             document.getElementById('connectBtn').textContent = '🔌 Reconnect';
             document.getElementById('connectBtn').classList.add('btn-success');
             document.getElementById('onlineStatus').textContent = 'Disconnected';
         }
-        
+
         function onMessageArrived(message) {
-            const topic = message.destinationName;
+            const topic   = message.destinationName;
             const payload = JSON.parse(message.payloadString);
-            const parts = topic.split('/');
-            const nodeId = parts[2];
-            const type = parts[3];
-            
+            const parts   = topic.split('/');
+            const nodeId  = parts[2];
+            const type    = parts[3];
+            if (!nodes[nodeId]) return;
             if (type === 'acceleration') {
                 updateAccelerationData(nodeId, payload);
             } else if (type === 'status' && payload.status === 'online') {
                 nodes[nodeId].online = true;
                 updateNodeStatus(nodeId);
             }
-            
             document.getElementById('lastUpdate').textContent = new Date().toLocaleTimeString();
         }
-        
+
         function updateNodeStatus(nodeId) {
-            const statusEl = document.getElementById(`${nodeId}Status`);
-            statusEl.textContent = 'Online';
-            statusEl.classList.remove('offline');
-            statusEl.classList.add('online');
+            const el = document.getElementById(`${nodeId}Status`);
+            el.textContent = 'Online';
+            el.classList.remove('offline');
+            el.classList.add('online');
         }
-        
+
+        // ============================================================
+        // LIVE DATA UPDATE
+        // ============================================================
         function updateAccelerationData(nodeId, data) {
             const node = nodes[nodeId];
             const { x, y, z, magnitude } = data;
-            const timestamp = new Date().toLocaleTimeString();
-            const fullTimestamp = new Date();
-            
-            // Update node data
+            const now = new Date();
+
             node.currentMagnitude = magnitude;
             if (magnitude > node.maxMagnitude) node.maxMagnitude = magnitude;
-            
-            // Add to rolling buffer (for history capture)
-            node.dataBuffer.push({
-                timestamp: fullTimestamp,
-                magnitude: magnitude,
-                x: x,
-                y: y,
-                z: z
-            });
-            
-            // Keep buffer at reasonable size (2 minutes of data at 1Hz)
-            if (node.dataBuffer.length > 120) {
-                node.dataBuffer.shift();
-            }
-            
-            // Add to chart data
-            node.chartData.labels.push(timestamp);
-            node.chartData.magnitude.push(magnitude);
-            
-            // Keep last MAX_POINTS
-            if (node.chartData.labels.length > MAX_POINTS) {
-                node.chartData.labels.shift();
-                node.chartData.magnitude.shift();
-            }
-            
-            // Update UI
+
+            // Rolling dataBuffer for event capture (10-min window = 600 pts at 1Hz)
+            node.dataBuffer.push({ timestamp: now, magnitude, x, y, z });
+            if (node.dataBuffer.length > 600) node.dataBuffer.shift();
+
+            // Persistent allData — compact pairs for storage efficiency
+            node.allData.push([now.getTime(), magnitude]);
+            if (node.allData.length > MAX_STORED) node.allData.shift();
+
+            // Update stat displays
             document.getElementById(`${nodeId}Current`).textContent = magnitude.toFixed(2);
-            document.getElementById(`${nodeId}Max`).textContent = node.maxMagnitude.toFixed(2);
-            
-            // Update chart
-            const chart = nodeId === 'node1' ? node1Chart : node2Chart;
-            chart.data.labels = [...node.chartData.labels];
-            chart.data.datasets[0].data = [...node.chartData.magnitude];
-            chart.update('none');
-            
-            // Check overall structure status
+            document.getElementById(`${nodeId}Max`).textContent     = node.maxMagnitude.toFixed(2);
+
+            // Redraw charts for active time span
+            updateSpanCharts();
+
+            // Debounced localStorage save
+            scheduleSave();
+
+            // Threshold / event detection
             checkStructureStatus();
         }
-        
+
+        // ============================================================
+        // THRESHOLD & EVENT DETECTION
+        // ============================================================
         function checkStructureStatus() {
-            const node1Mag = nodes.node1.currentMagnitude;
-            const node2Mag = nodes.node2.currentMagnitude;
-            const maxMag = Math.max(node1Mag, node2Mag);
-            
+            const maxMag   = Math.max(nodes.node1.currentMagnitude, nodes.node2.currentMagnitude);
             const statusEl = document.getElementById('overallStatusValue');
-            const infoEl = document.getElementById('overallStatusInfo');
-            
+            const infoEl   = document.getElementById('overallStatusInfo');
+
             if (maxMag >= THRESHOLD_UNSAFE) {
+                // If a post-event timeout was running, cancel it — we're unsafe again
+                if (eventEndTimeout) {
+                    clearTimeout(eventEndTimeout);
+                    eventEndTimeout = null;
+                }
                 if (structureStatus === 'SAFE') {
-                    // Just became unsafe - start recording event
                     structureStatus = 'UNSAFE';
                     startUnsafeEvent();
                 }
-                
                 statusEl.textContent = 'UNSAFE';
-                statusEl.className = 'overall-status-value unsafe';
-                infoEl.textContent = `⚠️ Threshold exceeded! Max magnitude: ${maxMag.toFixed(2)} m/s² (Threshold: ${THRESHOLD_UNSAFE} m/s²)`;
-                
-                document.getElementById('statusInfo').textContent = `⚠️ UNSAFE CONDITION - Recording event data...`;
+                statusEl.className   = 'overall-status-value unsafe';
+                infoEl.textContent   = `⚠️ Threshold exceeded! Max: ${maxMag.toFixed(2)} m/s² (Threshold: ${THRESHOLD_UNSAFE} m/s²)`;
+                document.getElementById('statusInfo').textContent = '⚠️ UNSAFE CONDITION — Recording event data...';
+
             } else {
-                if (structureStatus === 'UNSAFE') {
-                    // Just became safe - end recording event
-                    endUnsafeEvent();
+                // Was UNSAFE and now readings are safe — schedule close after post-buffer delay
+                if (structureStatus === 'UNSAFE' && !eventEndTimeout) {
+                    const endTime = new Date();
+                    eventEndTimeout = setTimeout(() => {
+                        endUnsafeEvent(endTime);
+                        eventEndTimeout = null;
+                    }, BUFFER_DURATION * 1000);  // wait BUFFER_DURATION s so we capture post-event data
                 }
-                
-                structureStatus = 'SAFE';
+                structureStatus      = 'SAFE';
                 statusEl.textContent = 'SAFE';
-                statusEl.className = 'overall-status-value safe';
-                infoEl.textContent = `All nodes operating within safe parameters (Current max: ${maxMag.toFixed(2)} m/s²)`;
-                
-                document.getElementById('statusInfo').textContent = `Monitoring ${nodes.node1.online && nodes.node2.online ? 'both nodes' : 'nodes'} | Threshold: ${THRESHOLD_UNSAFE} m/s²`;
+                statusEl.className   = 'overall-status-value safe';
+                infoEl.textContent   = `All nodes within safe parameters (Max: ${maxMag.toFixed(2)} m/s²)`;
+                document.getElementById('statusInfo').textContent = `Monitoring | Threshold: ${THRESHOLD_UNSAFE} m/s²`;
             }
         }
-        
+
         function startUnsafeEvent() {
             isRecordingEvent = true;
-            eventStartTime = new Date();
-            console.log('Started recording unsafe event');
+            eventStartTime   = new Date();
+            console.log('[ERI] Event started:', eventStartTime.toISOString());
         }
-        
-        function endUnsafeEvent() {
+
+        function endUnsafeEvent(endTime) {
             if (!isRecordingEvent) return;
-            
             isRecordingEvent = false;
-            const eventEndTime = new Date();
-            
-            // Collect data from BUFFER_DURATION seconds before and after
-            const bufferMs = BUFFER_DURATION * 1000;
-            const captureStartTime = new Date(eventStartTime.getTime() - bufferMs);
-            const captureEndTime = new Date(eventEndTime.getTime() + bufferMs);
-            
-            // Extract buffered data for both nodes
-            const node1Data = nodes.node1.dataBuffer.filter(d => 
-                d.timestamp >= captureStartTime && d.timestamp <= captureEndTime
-            );
-            const node2Data = nodes.node2.dataBuffer.filter(d => 
-                d.timestamp >= captureStartTime && d.timestamp <= captureEndTime
-            );
-            
-            // Create event record
+
+            const bufMs        = BUFFER_DURATION * 1000;
+            const captureStart = new Date(eventStartTime.getTime() - bufMs);
+            // Post-event: we waited BUFFER_DURATION seconds before calling this,
+            // so dataBuffer now contains data up to now (≈ endTime + BUFFER_DURATION)
+            const captureEnd   = new Date(endTime.getTime() + bufMs);
+
+            const node1Data = nodes.node1.dataBuffer.filter(d => d.timestamp >= captureStart && d.timestamp <= captureEnd);
+            const node2Data = nodes.node2.dataBuffer.filter(d => d.timestamp >= captureStart && d.timestamp <= captureEnd);
+
             const event = {
-                id: unsafeEvents.length + 1,
-                timestamp: eventStartTime,
-                endTime: eventEndTime,
-                duration: (eventEndTime - eventStartTime) / 1000,
-                maxMagnitude: Math.max(nodes.node1.maxMagnitude, nodes.node2.maxMagnitude),
-                node1Data: node1Data,
-                node2Data: node2Data,
-                structureName: document.getElementById('structureName').value,
+                id:             unsafeEvents.length + 1,
+                timestamp:      eventStartTime,
+                endTime:        endTime,
+                duration:       (endTime - eventStartTime) / 1000,
+                maxMagnitude:   Math.max(nodes.node1.maxMagnitude, nodes.node2.maxMagnitude),
+                node1Data,
+                node2Data,
+                structureName:  document.getElementById('structureName').value,
                 bufferDuration: BUFFER_DURATION
             };
-            
-            unsafeEvents.unshift(event); // Add to beginning
-            
-            // Update history UI
+
+            unsafeEvents.unshift(event);
             updateHistoryUI();
-            
-            console.log('Ended recording unsafe event', event);
+            saveToStorage();  // Immediate save on new event
+            console.log('[ERI] Event recorded:', event.id, `(${event.duration.toFixed(1)}s, ${node1Data.length + node2Data.length} pts)`);
         }
-        
+
+        // ============================================================
+        // HISTORY UI
+        // ============================================================
         function updateHistoryUI() {
-            document.getElementById('historyCount').textContent = unsafeEvents.length;
-            
-            if (unsafeEvents.length > 0) {
-                document.getElementById('lastEventTime').textContent = unsafeEvents[0].timestamp.toLocaleString();
-                
-                const historyList = document.getElementById('historyList');
-                
-                // Destroy any existing event charts to prevent memory leaks
-                Object.values(eventCharts).forEach(c => c.destroy());
-                eventCharts = {};
-                
-                historyList.innerHTML = '';
-                
-                unsafeEvents.forEach(event => {
-                    const n1Min = event.node1Data.length > 0 ? Math.min(...event.node1Data.map(d => d.magnitude)).toFixed(2) : 'N/A';
-                    const n1Max = event.node1Data.length > 0 ? Math.max(...event.node1Data.map(d => d.magnitude)).toFixed(2) : 'N/A';
-                    const n2Min = event.node2Data.length > 0 ? Math.min(...event.node2Data.map(d => d.magnitude)).toFixed(2) : 'N/A';
-                    const n2Max = event.node2Data.length > 0 ? Math.max(...event.node2Data.map(d => d.magnitude)).toFixed(2) : 'N/A';
-                    const buf = event.bufferDuration;
-                    const chartId = `eventChart_${event.id}`;
-                    const eventHtml = `
-                        <div class="history-item">
-                            <div class="history-item-header">
-                                <div class="history-timestamp">${event.timestamp.toLocaleString()}</div>
-                                <div class="history-badge">UNSAFE EVENT #${event.id}</div>
+            document.getElementById('historyCount').textContent  = unsafeEvents.length;
+            document.getElementById('lastEventTime').textContent = unsafeEvents.length > 0
+                ? unsafeEvents[0].timestamp.toLocaleString() : 'Never';
+
+            const historyList = document.getElementById('historyList');
+
+            // Destroy old chart instances to prevent memory leaks
+            Object.values(eventCharts).forEach(c => c.destroy());
+            eventCharts = {};
+
+            if (unsafeEvents.length === 0) {
+                historyList.innerHTML = `
+                    <div style="text-align:center;padding:3rem;color:var(--text-muted);">
+                        <div style="font-size:3rem;margin-bottom:1rem;">📊</div>
+                        <div>No unsafe events recorded yet</div>
+                        <div style="font-size:0.875rem;margin-top:0.5rem;">Events will appear here when threshold is exceeded</div>
+                    </div>`;
+                return;
+            }
+
+            historyList.innerHTML = '';
+            unsafeEvents.forEach(event => {
+                const n1Min = event.node1Data.length > 0 ? Math.min(...event.node1Data.map(d => d.magnitude)).toFixed(2) : 'N/A';
+                const n1Max = event.node1Data.length > 0 ? Math.max(...event.node1Data.map(d => d.magnitude)).toFixed(2) : 'N/A';
+                const n2Min = event.node2Data.length > 0 ? Math.min(...event.node2Data.map(d => d.magnitude)).toFixed(2) : 'N/A';
+                const n2Max = event.node2Data.length > 0 ? Math.max(...event.node2Data.map(d => d.magnitude)).toFixed(2) : 'N/A';
+                const buf   = event.bufferDuration || BUFFER_DURATION;
+                const cid   = `eventChart_${event.id}`;
+
+                historyList.innerHTML += `
+                    <div class="history-item">
+                        <div class="history-item-header">
+                            <div class="history-timestamp">${event.timestamp.toLocaleString()}</div>
+                            <div class="history-badge">UNSAFE EVENT #${event.id}</div>
+                        </div>
+                        <div class="history-details">
+                            <div class="history-detail">
+                                <div class="history-detail-label">Duration</div>
+                                <div class="history-detail-value">${event.duration.toFixed(1)}s</div>
                             </div>
-                            <div class="history-details">
-                                <div class="history-detail">
-                                    <div class="history-detail-label">Duration</div>
-                                    <div class="history-detail-value">${event.duration.toFixed(1)}s</div>
-                                </div>
-                                <div class="history-detail">
-                                    <div class="history-detail-label">Max Magnitude</div>
-                                    <div class="history-detail-value">${event.maxMagnitude.toFixed(2)} m/s²</div>
-                                </div>
-                                <div class="history-detail">
-                                    <div class="history-detail-label">Structure</div>
-                                    <div class="history-detail-value">${event.structureName}</div>
-                                </div>
-                                <div class="history-detail">
-                                    <div class="history-detail-label">Data Points</div>
-                                    <div class="history-detail-value">${event.node1Data.length + event.node2Data.length}</div>
-                                </div>
+                            <div class="history-detail">
+                                <div class="history-detail-label">Max Magnitude</div>
+                                <div class="history-detail-value">${event.maxMagnitude.toFixed(2)} m/s²</div>
                             </div>
-                            <div class="history-data-buffer">
-                                <div class="history-data-title">📊 Recorded Data (±${buf}s buffer)</div>
-                                <div class="history-data-grid">
-                                    <div>
-                                        <strong>Ground Floor:</strong> ${event.node1Data.length} samples
-                                        <br>Range: ${n1Min} – ${n1Max} m/s²
-                                    </div>
-                                    <div>
-                                        <strong>Top Floor:</strong> ${event.node2Data.length} samples
-                                        <br>Range: ${n2Min} – ${n2Max} m/s²
-                                    </div>
-                                </div>
-                                <div class="event-chart-header" style="margin-top:1rem;">
-                                    <span class="event-chart-title">⏱ Acceleration Timeline (±${buf}s window)</span>
-                                    <span class="event-window-label">🔴 Shaded = Unsafe Event Duration</span>
-                                </div>
-                                <div class="event-chart-legend">
-                                    <span><span class="legend-dot" style="background:#06b6d4;"></span>Ground Floor</span>
-                                    <span><span class="legend-dot" style="background:#a855f7;"></span>Top Floor</span>
-                                    <span><span class="legend-dot" style="background:#ef4444; border-radius:0; height:2px; width:14px; display:inline-block; vertical-align:middle; margin-right:4px;"></span>Threshold</span>
-                                </div>
-                                <div class="event-chart-container">
-                                    <canvas id="${chartId}"></canvas>
-                                </div>
+                            <div class="history-detail">
+                                <div class="history-detail-label">Structure</div>
+                                <div class="history-detail-value">${event.structureName}</div>
+                            </div>
+                            <div class="history-detail">
+                                <div class="history-detail-label">Data Points</div>
+                                <div class="history-detail-value">${event.node1Data.length + event.node2Data.length}</div>
                             </div>
                         </div>
-                    `;
-                    historyList.innerHTML += eventHtml;
-                });
-                
-                // Render charts after DOM is updated
-                unsafeEvents.forEach(event => renderEventChart(event));
-            }
+                        <div class="history-data-buffer">
+                            <div class="history-data-title">📊 Recorded Data (±${buf}s buffer)</div>
+                            <div class="history-data-grid">
+                                <div><strong>Ground Floor:</strong> ${event.node1Data.length} samples<br>Range: ${n1Min} – ${n1Max} m/s²</div>
+                                <div><strong>Top Floor:</strong> ${event.node2Data.length} samples<br>Range: ${n2Min} – ${n2Max} m/s²</div>
+                            </div>
+                            <div class="event-chart-header" style="margin-top:1rem;">
+                                <span class="event-chart-title">⏱ Acceleration Timeline (±${buf}s window)</span>
+                                <span class="event-window-label">🔴 Shaded = Unsafe Event Duration</span>
+                            </div>
+                            <div class="event-chart-legend">
+                                <span><span class="legend-dot" style="background:#06b6d4;"></span>Ground Floor</span>
+                                <span><span class="legend-dot" style="background:#a855f7;"></span>Top Floor</span>
+                                <span><span class="legend-dot" style="background:#ef4444;border-radius:0;height:2px;width:14px;display:inline-block;vertical-align:middle;margin-right:4px;"></span>Threshold</span>
+                            </div>
+                            <div class="event-chart-container">
+                                <canvas id="${cid}"></canvas>
+                            </div>
+                        </div>
+                    </div>`;
+            });
+
+            // Render event charts after DOM is populated
+            unsafeEvents.forEach(event => renderEventChart(event));
         }
-        
+
+        // ============================================================
+        // EVENT DETAIL CHART (±buffer window with shaded unsafe region)
+        // ============================================================
         function renderEventChart(event) {
-            const chartId = `eventChart_${event.id}`;
-            const canvas = document.getElementById(chartId);
+            const canvas = document.getElementById(`eventChart_${event.id}`);
             if (!canvas) return;
-            
-            const buf = event.bufferDuration;
+
+            const buf            = event.bufferDuration || BUFFER_DURATION;
             const captureStartMs = event.timestamp.getTime() - buf * 1000;
-            
-            // Gather all unique timestamps from both nodes, sorted
+
+            // Build sorted unique timestamp list from both nodes
             const timeSet = new Set();
             event.node1Data.forEach(d => timeSet.add(d.timestamp.getTime()));
             event.node2Data.forEach(d => timeSet.add(d.timestamp.getTime()));
             const sortedMs = Array.from(timeSet).sort((a, b) => a - b);
-            
+
             if (sortedMs.length === 0) {
-                // No data — show a placeholder message on canvas
                 const ctx = canvas.getContext('2d');
-                ctx.fillStyle = '#6b7280';
-                ctx.font = '14px monospace';
-                ctx.textAlign = 'center';
+                ctx.fillStyle = '#6b7280'; ctx.font = '13px monospace'; ctx.textAlign = 'center';
                 ctx.fillText('No data captured for this event', canvas.width / 2, canvas.height / 2);
                 return;
             }
-            
-            // Build relative-time labels (seconds from capture start)
-            const labels = sortedMs.map(ms => ((ms - captureStartMs) / 1000).toFixed(1) + 's');
-            
-            // Map each node's data to sorted timestamps (null for missing)
-            const n1Map = {};
+
+            const labels    = sortedMs.map(ms => ((ms - captureStartMs) / 1000).toFixed(1) + 's');
+            const n1Map     = {};
+            const n2Map     = {};
             event.node1Data.forEach(d => { n1Map[d.timestamp.getTime()] = d.magnitude; });
-            const n2Map = {};
             event.node2Data.forEach(d => { n2Map[d.timestamp.getTime()] = d.magnitude; });
-            
-            const n1Values = sortedMs.map(ms => n1Map[ms] !== undefined ? n1Map[ms] : null);
-            const n2Values = sortedMs.map(ms => n2Map[ms] !== undefined ? n2Map[ms] : null);
-            const thresholdLine = sortedMs.map(() => THRESHOLD_UNSAFE);
-            
-            // Compute event window indices for background shading
+            const n1Values  = sortedMs.map(ms => n1Map[ms] !== undefined ? n1Map[ms] : null);
+            const n2Values  = sortedMs.map(ms => n2Map[ms] !== undefined ? n2Map[ms] : null);
+            const threshold = sortedMs.map(() => THRESHOLD_UNSAFE);
+
             const eventStartMs = event.timestamp.getTime();
             const eventEndMs   = event.endTime.getTime();
-            
-            // Custom plugin: shade the unsafe event region
+
+            // Custom plugin: shade the unsafe duration region
             const shadingPlugin = {
                 id: `shading_${event.id}`,
                 beforeDraw(chart) {
                     const { ctx, chartArea, scales } = chart;
                     if (!chartArea) return;
-                    
-                    const labels = chart.data.labels;
-                    
-                    // Find index bounds for event start & end
-                    let x1 = chartArea.left;
-                    let x2 = chartArea.right;
-                    let foundStart = false, foundEnd = false;
-                    
-                    for (let i = 0; i < labels.length; i++) {
-                        const absMs = captureStartMs + parseFloat(labels[i]) * 1000;
-                        if (!foundStart && absMs >= eventStartMs) {
-                            x1 = scales.x.getPixelForValue(i);
-                            foundStart = true;
-                        }
-                        if (absMs <= eventEndMs) {
-                            x2 = scales.x.getPixelForValue(i);
-                        }
+                    const lbs = chart.data.labels;
+                    let x1 = chartArea.left, x2 = chartArea.right, foundStart = false;
+                    for (let i = 0; i < lbs.length; i++) {
+                        const absMs = captureStartMs + parseFloat(lbs[i]) * 1000;
+                        if (!foundStart && absMs >= eventStartMs) { x1 = scales.x.getPixelForValue(i); foundStart = true; }
+                        if (absMs <= eventEndMs) x2 = scales.x.getPixelForValue(i);
                         if (foundStart && absMs > eventEndMs) break;
                     }
-                    
                     ctx.save();
-                    ctx.fillStyle = 'rgba(239, 68, 68, 0.13)';
+                    ctx.fillStyle = 'rgba(239,68,68,0.13)';
                     ctx.fillRect(x1, chartArea.top, x2 - x1, chartArea.bottom - chartArea.top);
-                    
-                    // Draw vertical lines at event boundaries
-                    ctx.strokeStyle = 'rgba(239, 68, 68, 0.5)';
-                    ctx.lineWidth = 1.5;
-                    ctx.setLineDash([4, 3]);
-                    ctx.beginPath(); ctx.moveTo(x1, chartArea.top); ctx.lineTo(x1, chartArea.bottom); ctx.stroke();
-                    ctx.beginPath(); ctx.moveTo(x2, chartArea.top); ctx.lineTo(x2, chartArea.bottom); ctx.stroke();
+                    ctx.strokeStyle = 'rgba(239,68,68,0.5)'; ctx.lineWidth = 1.5; ctx.setLineDash([4, 3]);
+                    [x1, x2].forEach(x => { ctx.beginPath(); ctx.moveTo(x, chartArea.top); ctx.lineTo(x, chartArea.bottom); ctx.stroke(); });
                     ctx.restore();
                 }
             };
-            
+
             const chart = new Chart(canvas, {
                 type: 'line',
                 plugins: [shadingPlugin],
                 data: {
                     labels,
                     datasets: [
-                        {
-                            label: 'Ground Floor',
-                            data: n1Values,
-                            borderColor: '#06b6d4',
-                            backgroundColor: 'rgba(6, 182, 212, 0.08)',
-                            borderWidth: 2,
-                            tension: 0.4,
-                            fill: false,
-                            pointRadius: 3,
-                            pointHoverRadius: 5,
-                            spanGaps: true
-                        },
-                        {
-                            label: 'Top Floor',
-                            data: n2Values,
-                            borderColor: '#a855f7',
-                            backgroundColor: 'rgba(168, 85, 247, 0.08)',
-                            borderWidth: 2,
-                            tension: 0.4,
-                            fill: false,
-                            pointRadius: 3,
-                            pointHoverRadius: 5,
-                            spanGaps: true
-                        },
-                        {
-                            label: `Threshold (${THRESHOLD_UNSAFE})`,
-                            data: thresholdLine,
-                            borderColor: 'rgba(239, 68, 68, 0.7)',
-                            borderWidth: 1.5,
-                            borderDash: [6, 4],
-                            pointRadius: 0,
-                            fill: false,
-                            tension: 0
-                        }
+                        { label: 'Ground Floor', data: n1Values, borderColor: '#06b6d4', backgroundColor: 'rgba(6,182,212,0.08)', borderWidth: 2, tension: 0.4, fill: false, pointRadius: 3, spanGaps: true },
+                        { label: 'Top Floor',    data: n2Values, borderColor: '#a855f7', backgroundColor: 'rgba(168,85,247,0.08)', borderWidth: 2, tension: 0.4, fill: false, pointRadius: 3, spanGaps: true },
+                        { label: `Threshold (${THRESHOLD_UNSAFE})`, data: threshold, borderColor: 'rgba(239,68,68,0.7)', borderWidth: 1.5, borderDash: [6, 4], pointRadius: 0, fill: false, tension: 0 }
                     ]
                 },
                 options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
+                    responsive: true, maintainAspectRatio: false,
                     interaction: { mode: 'index', intersect: false },
                     plugins: {
                         legend: { display: false },
                         tooltip: {
-                            backgroundColor: '#1a2332',
-                            borderColor: '#2d3748',
-                            borderWidth: 1,
-                            titleColor: '#9ca3af',
-                            bodyColor: '#ffffff',
-                            padding: 10,
-                            callbacks: {
-                                label: ctx => ` ${ctx.dataset.label}: ${ctx.parsed.y !== null ? ctx.parsed.y.toFixed(3) + ' m/s²' : 'N/A'}`
-                            }
+                            backgroundColor: '#1a2332', borderColor: '#2d3748', borderWidth: 1,
+                            titleColor: '#9ca3af', bodyColor: '#ffffff', padding: 10,
+                            callbacks: { label: ctx => ` ${ctx.dataset.label}: ${ctx.parsed.y !== null ? ctx.parsed.y.toFixed(3) + ' m/s²' : 'N/A'}` }
                         }
                     },
                     scales: {
-                        x: {
-                            ticks: {
-                                color: '#6b7280',
-                                maxTicksLimit: 12,
-                                font: { size: 10 }
-                            },
-                            grid: { color: 'rgba(255,255,255,0.04)' },
-                            title: { display: true, text: 'Time from capture start (s)', color: '#6b7280', font: { size: 10 } }
-                        },
-                        y: {
-                            ticks: { color: '#6b7280', font: { size: 10 } },
-                            grid: { color: 'rgba(255,255,255,0.04)' },
-                            title: { display: true, text: 'Magnitude (m/s²)', color: '#6b7280', font: { size: 10 } }
-                        }
+                        x: { ticks: { color: '#6b7280', maxTicksLimit: 12, font: { size: 10 } }, grid: { color: 'rgba(255,255,255,0.04)' }, title: { display: true, text: 'Time from capture start (s)', color: '#6b7280', font: { size: 10 } } },
+                        y: { ticks: { color: '#6b7280', font: { size: 10 } }, grid: { color: 'rgba(255,255,255,0.04)' }, title: { display: true, text: 'Magnitude (m/s²)', color: '#6b7280', font: { size: 10 } } }
                     },
                     animation: false
                 }
             });
-            
+
             eventCharts[event.id] = chart;
         }
-        
-        // Initialize on load — auto-connect to MQTT so live data starts immediately
+
+        // ============================================================
+        // INIT — load persisted data, then connect
+        // ============================================================
         window.addEventListener('load', () => {
-            console.log('ERI Enhanced Dashboard loaded — auto-connecting…');
-            connectMQTT();
+            loadFromStorage();   // Restore data and events from localStorage
+            connectMQTT();       // Auto-connect for live updates
         });
     </script>
 </body>
