@@ -831,20 +831,35 @@
             </p>
             <div class="modal-steps">
                 <span>Step 1</span> Go to <a href="https://console.firebase.google.com" target="_blank">console.firebase.google.com</a> → Create a project<br>
-                <span>Step 2</span> Build → Realtime Database → Create Database → Start in <b>test mode</b><br>
-                <span>Step 3</span> Project Settings (⚙️) → Your apps → Add Web app → Register<br>
-                <span>Step 4</span> Copy the <b>firebaseConfig</b> object below and paste it here:
+                <span>Step 2</span> <b>Build → Realtime Database → Create Database</b> → choose a region → <b>Start in test mode</b><br>
+                <span>Step 3</span> <b>Project Settings (⚙️) → Your apps → Add Web app</b> → Register app<br>
+                <span>Step 4</span> Copy the <b>firebaseConfig</b> object shown and paste it below<br>
+                <span>⚠️ Note</span> Firebase often <b>omits databaseURL</b> from the config snippet — use the separate field below if so
             </div>
             <textarea class="modal-textarea" id="fbConfigInput" spellcheck="false" placeholder='Paste your firebaseConfig here, e.g.:
 {
   "apiKey": "AIza...",
   "authDomain": "your-project.firebaseapp.com",
-  "databaseURL": "https://your-project-default-rtdb.firebaseio.com",
   "projectId": "your-project",
   "storageBucket": "your-project.appspot.com",
   "messagingSenderId": "123456789",
   "appId": "1:123456789:web:abc123"
 }'></textarea>
+
+            <div style="margin-bottom:0.75rem;">
+                <label style="font-size:0.75rem;color:var(--text-muted);display:block;margin-bottom:0.4rem;">
+                    DATABASE URL <span style="color:var(--accent-cyan);">(required if not in config above)</span>
+                </label>
+                <input type="text" id="fbDatabaseURL" class="modal-textarea"
+                    style="height:auto;padding:0.7rem 1rem;font-size:0.8rem;"
+                    placeholder="https://your-project-default-rtdb.firebaseio.com"
+                    spellcheck="false">
+                <div style="font-size:0.72rem;color:var(--text-muted);margin-top:0.4rem;line-height:1.6;">
+                    📍 Find it in Firebase Console → <b>Build → Realtime Database</b> — copy the URL shown at the top of the Data tab
+                    (looks like <code style="color:var(--accent-cyan);">https://your-project-default-rtdb.firebaseio.com</code>)
+                </div>
+            </div>
+
             <div class="modal-error" id="fbModalError"></div>
             <div class="modal-actions">
                 <button class="btn btn-secondary" id="fbSkipBtn" onclick="closeFirebaseSetup()">Skip for now</button>
@@ -949,9 +964,18 @@
         // ============================================================
         function showFirebaseSetup() {
             document.getElementById('fbModal').classList.add('visible');
-            document.getElementById('fbSkipBtn').style.display = fbReady ? 'block' : 'block';
             const saved = localStorage.getItem(SK_FB_CONFIG);
-            if (saved) document.getElementById('fbConfigInput').value = saved;
+            if (saved) {
+                try {
+                    const cfg = JSON.parse(saved);
+                    // Show config without databaseURL in the textarea (cleaner)
+                    const { databaseURL, ...rest } = cfg;
+                    document.getElementById('fbConfigInput').value = JSON.stringify(rest, null, 2);
+                    if (databaseURL) document.getElementById('fbDatabaseURL').value = databaseURL;
+                } catch (e) {
+                    document.getElementById('fbConfigInput').value = saved;
+                }
+            }
         }
 
         function closeFirebaseSetup() {
@@ -959,32 +983,54 @@
         }
 
         function saveFirebaseConfig() {
-            const raw = document.getElementById('fbConfigInput').value.trim();
-            const errEl = document.getElementById('fbModalError');
+            const raw     = document.getElementById('fbConfigInput').value.trim();
+            const dbURL   = document.getElementById('fbDatabaseURL').value.trim();
+            const errEl   = document.getElementById('fbModalError');
             errEl.textContent = '';
 
-            let config;
-            try {
-                // Accept both plain object and const firebaseConfig = {...} formats
-                const cleaned = raw
-                    .replace(/^const\s+\w+\s*=\s*/, '')
-                    .replace(/^var\s+\w+\s*=\s*/, '')
-                    .replace(/^let\s+\w+\s*=\s*/, '')
-                    .replace(/;$/, '')
-                    .trim();
-                config = JSON.parse(cleaned);
-            } catch (e) {
-                // Try eval-style parse (keys without quotes)
+            if (!raw && !dbURL) {
+                errEl.textContent = '❌ Please paste your firebaseConfig and/or your Database URL.';
+                return;
+            }
+
+            let config = {};
+
+            // Parse the config block if provided
+            if (raw) {
                 try {
-                    config = Function('"use strict"; return (' + raw.replace(/^const\s+\w+\s*=\s*/, '').replace(/;$/, '') + ')')();
-                } catch (e2) {
-                    errEl.textContent = '❌ Could not parse config. Make sure you copied the full firebaseConfig object.';
-                    return;
+                    const cleaned = raw
+                        .replace(/^(const|var|let)\s+\w+\s*=\s*/, '')
+                        .replace(/;$/, '')
+                        .trim();
+                    config = JSON.parse(cleaned);
+                } catch (e) {
+                    try {
+                        config = Function('"use strict"; return (' +
+                            raw.replace(/^(const|var|let)\s+\w+\s*=\s*/, '').replace(/;$/, '') +
+                        ')')();
+                    } catch (e2) {
+                        errEl.textContent = '❌ Could not parse the firebaseConfig. Make sure you copied the full object (starting with { ).';
+                        return;
+                    }
                 }
             }
 
+            // Override or inject databaseURL from the dedicated field
+            if (dbURL) {
+                config.databaseURL = dbURL;
+            }
+
+            // Final validation
             if (!config.databaseURL) {
-                errEl.textContent = '❌ Missing databaseURL. Make sure your Firebase project has a Realtime Database enabled.';
+                errEl.textContent = '❌ Database URL is missing. Paste it into the Database URL field above. Find it in Firebase Console → Build → Realtime Database → copy the URL at the top of the Data tab.';
+                return;
+            }
+            if (!config.databaseURL.startsWith('https://')) {
+                errEl.textContent = '❌ Database URL must start with https://  (e.g. https://your-project-default-rtdb.firebaseio.com)';
+                return;
+            }
+            if (!config.apiKey) {
+                errEl.textContent = '❌ apiKey is missing from the config. Make sure you copied the full firebaseConfig object from Project Settings.';
                 return;
             }
 
