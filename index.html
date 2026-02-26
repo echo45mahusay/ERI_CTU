@@ -6,8 +6,6 @@
     <title>ERI - Enhanced Multi-Node Dashboard</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.0.1/mqttws31.min.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -535,118 +533,41 @@
         .btn-danger { background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.4); color: var(--accent-red); }
         .btn-danger:hover { background: rgba(239, 68, 68, 0.25); transform: translateY(-2px); }
 
-        /* Firebase Setup Modal */
-        .modal-overlay {
-            display: none;
-            position: fixed;
-            inset: 0;
-            background: rgba(0,0,0,0.85);
-            z-index: 999;
-            align-items: center;
-            justify-content: center;
-            backdrop-filter: blur(4px);
-        }
-        .modal-overlay.visible { display: flex; }
-
-        .modal-box {
-            background: var(--bg-card);
-            border: 1px solid var(--accent-cyan);
-            border-radius: 16px;
-            padding: 2.5rem;
-            width: min(600px, 95vw);
-            box-shadow: 0 0 60px rgba(6,182,212,0.15);
-        }
-        .modal-title {
-            font-size: 1.25rem;
-            font-weight: 700;
+        .btn-export {
+            padding: 0.35rem 0.85rem;
+            background: rgba(6, 182, 212, 0.1);
+            border: 1px solid rgba(6, 182, 212, 0.35);
+            border-radius: 6px;
             color: var(--accent-cyan);
-            margin-bottom: 0.5rem;
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-        }
-        .modal-subtitle {
-            font-size: 0.8rem;
-            color: var(--text-muted);
-            margin-bottom: 1.75rem;
-            line-height: 1.6;
-        }
-        .modal-subtitle a { color: var(--accent-cyan); }
-        .modal-steps {
-            background: var(--bg-secondary);
-            border-radius: 8px;
-            padding: 1rem 1.25rem;
-            margin-bottom: 1.5rem;
-            font-size: 0.78rem;
-            color: var(--text-secondary);
-            line-height: 2;
-        }
-        .modal-steps span { color: var(--accent-cyan); font-weight: 700; }
-        .modal-textarea {
-            width: 100%;
-            height: 200px;
-            padding: 1rem;
-            background: var(--bg-secondary);
-            border: 1px solid var(--border-color);
-            border-radius: 8px;
-            color: var(--text-primary);
             font-family: 'JetBrains Mono', monospace;
-            font-size: 0.75rem;
-            resize: vertical;
-            margin-bottom: 1rem;
+            font-size: 0.72rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            white-space: nowrap;
         }
-        .modal-textarea:focus { outline: none; border-color: var(--accent-cyan); }
-        .modal-error {
-            font-size: 0.78rem;
-            color: var(--accent-red);
-            margin-bottom: 0.75rem;
-            min-height: 1.2em;
+        .btn-export:hover { background: rgba(6, 182, 212, 0.2); transform: translateY(-1px); }
+        .btn-export-sm {
+            padding: 0.25rem 0.65rem;
+            font-size: 0.68rem;
         }
-        .modal-actions { display: flex; gap: 1rem; }
-        .modal-actions .btn { flex: 1; }
 
-        /* Firebase sync badge in nav */
-        .fb-badge {
+        /* Sync status badge in nav */
+        .sync-badge {
             display: flex;
             align-items: center;
             gap: 0.4rem;
             font-size: 0.72rem;
-            padding: 0.3rem 0.7rem;
+            padding: 0.3rem 0.8rem;
             border-radius: 20px;
             border: 1px solid var(--border-color);
             background: var(--bg-card);
             color: var(--text-muted);
-            cursor: pointer;
-            transition: all 0.2s;
         }
-        .fb-badge.syncing { border-color: var(--accent-yellow); color: var(--accent-yellow); }
-        .fb-badge.connected { border-color: var(--accent-green); color: var(--accent-green); }
-        .fb-badge.error { border-color: var(--accent-red); color: var(--accent-red); }
-        .fb-dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
-
-        /* Loading overlay while fetching historical data */
-        .fb-loading {
-            display: none;
-            position: fixed;
-            inset: 0;
-            background: rgba(10,14,23,0.88);
-            z-index: 900;
-            align-items: center;
-            justify-content: center;
-            flex-direction: column;
-            gap: 1rem;
-            backdrop-filter: blur(3px);
-        }
-        .fb-loading.visible { display: flex; }
-        .fb-loading-text { font-size: 0.9rem; color: var(--text-secondary); }
-        .fb-spinner {
-            width: 36px; height: 36px;
-            border: 3px solid var(--border-color);
-            border-top-color: var(--accent-cyan);
-            border-radius: 50%;
-            animation: spin 0.8s linear infinite;
-        }
-        @keyframes spin { to { transform: rotate(360deg); } }
+        .sync-badge.syncing { border-color: var(--accent-yellow); color: var(--accent-yellow); }
+        .sync-badge.synced  { border-color: var(--accent-green);  color: var(--accent-green);  }
+        .sync-dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+        .sync-dot.pulse { animation: pulse 1.5s infinite; }
 
         /* Responsive */
         @media (max-width: 1200px) {
@@ -685,9 +606,9 @@
             </div>
             
             <div class="nav-right">
-                <div class="fb-badge" id="fbBadge" onclick="showFirebaseSetup()" title="Click to configure Firebase">
-                    <div class="fb-dot"></div>
-                    <span id="fbBadgeText">Firebase: Not configured</span>
+                <div class="sync-badge" id="syncBadge">
+                    <div class="sync-dot" id="syncDot"></div>
+                    <span id="syncText">History: Waiting…</span>
                 </div>
                 <button class="btn btn-success" id="connectBtn" onclick="connectMQTT()">🔌 Connect</button>
             </div>
@@ -752,7 +673,10 @@
                             <div class="node-title">🏢 Ground Floor</div>
                             <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 0.25rem;">CTU Main Building - Ground Level</div>
                         </div>
-                        <div class="node-status offline" id="node1Status">Offline</div>
+                        <div style="display:flex;align-items:center;gap:0.75rem;">
+                            <button class="btn-export" onclick="exportNodeCSV('node1')" title="Export Ground Floor data as CSV">⬇ Export CSV</button>
+                            <div class="node-status offline" id="node1Status">Offline</div>
+                        </div>
                     </div>
                     <div class="node-stats">
                         <div class="node-stat">
@@ -778,7 +702,10 @@
                             <div class="node-title">🏗️ Top Floor</div>
                             <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 0.25rem;">CTU Main Building - Top Level</div>
                         </div>
-                        <div class="node-status offline" id="node2Status">Offline</div>
+                        <div style="display:flex;align-items:center;gap:0.75rem;">
+                            <button class="btn-export" onclick="exportNodeCSV('node2')" title="Export Top Floor data as CSV">⬇ Export CSV</button>
+                            <div class="node-status offline" id="node2Status">Offline</div>
+                        </div>
                     </div>
                     <div class="node-stats">
                         <div class="node-stat">
@@ -803,11 +730,12 @@
         <div id="historyTab" class="tab-content">
             <div class="history-header">
                 <div class="history-title">⚠️ Unsafe Events History</div>
-                <div style="display:flex;align-items:center;gap:1.5rem;">
+                <div style="display:flex;align-items:center;gap:0.75rem;flex-wrap:wrap;">
                     <div class="history-stats">
                         <span>Total Events: <strong id="historyCount">0</strong></span>
                         <span>Last Event: <strong id="lastEventTime">Never</strong></span>
                     </div>
+                    <button class="btn-export" onclick="exportAllEventsCSV()" title="Export all unsafe events as CSV">⬇ Export All Events CSV</button>
                     <button class="btn btn-danger" onclick="clearAllData()" style="padding:0.5rem 1rem;font-size:0.8rem;">🗑 Clear All Data</button>
                 </div>
             </div>
@@ -821,59 +749,6 @@
         </div>
     </div>
     
-    <!-- Firebase Setup Modal -->
-    <div class="modal-overlay" id="fbModal">
-        <div class="modal-box">
-            <div class="modal-title">🔥 Firebase Setup</div>
-            <p class="modal-subtitle">
-                Connect to Firebase Realtime Database so all your data is shared across every device in real-time.
-                All historical recordings from system start will be visible everywhere.
-            </p>
-            <div class="modal-steps">
-                <span>Step 1</span> Go to <a href="https://console.firebase.google.com" target="_blank">console.firebase.google.com</a> → Create a project<br>
-                <span>Step 2</span> <b>Build → Realtime Database → Create Database</b> → choose a region → <b>Start in test mode</b><br>
-                <span>Step 3</span> <b>Project Settings (⚙️) → Your apps → Add Web app</b> → Register app<br>
-                <span>Step 4</span> Copy the <b>firebaseConfig</b> object shown and paste it below<br>
-                <span>⚠️ Note</span> Firebase often <b>omits databaseURL</b> from the config snippet — use the separate field below if so
-            </div>
-            <textarea class="modal-textarea" id="fbConfigInput" spellcheck="false" placeholder='Paste your firebaseConfig here, e.g.:
-{
-  "apiKey": "AIza...",
-  "authDomain": "your-project.firebaseapp.com",
-  "projectId": "your-project",
-  "storageBucket": "your-project.appspot.com",
-  "messagingSenderId": "123456789",
-  "appId": "1:123456789:web:abc123"
-}'></textarea>
-
-            <div style="margin-bottom:0.75rem;">
-                <label style="font-size:0.75rem;color:var(--text-muted);display:block;margin-bottom:0.4rem;">
-                    DATABASE URL <span style="color:var(--accent-cyan);">(required if not in config above)</span>
-                </label>
-                <input type="text" id="fbDatabaseURL" class="modal-textarea"
-                    style="height:auto;padding:0.7rem 1rem;font-size:0.8rem;"
-                    placeholder="https://your-project-default-rtdb.firebaseio.com"
-                    spellcheck="false">
-                <div style="font-size:0.72rem;color:var(--text-muted);margin-top:0.4rem;line-height:1.6;">
-                    📍 Find it in Firebase Console → <b>Build → Realtime Database</b> — copy the URL shown at the top of the Data tab
-                    (looks like <code style="color:var(--accent-cyan);">https://your-project-default-rtdb.firebaseio.com</code>)
-                </div>
-            </div>
-
-            <div class="modal-error" id="fbModalError"></div>
-            <div class="modal-actions">
-                <button class="btn btn-secondary" id="fbSkipBtn" onclick="closeFirebaseSetup()">Skip for now</button>
-                <button class="btn" onclick="saveFirebaseConfig()">🔥 Connect to Firebase</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- Historical data loading overlay -->
-    <div class="fb-loading" id="fbLoading">
-        <div class="fb-spinner"></div>
-        <div class="fb-loading-text" id="fbLoadingText">Loading historical data from Firebase…</div>
-    </div>
-
     <!-- Status Bar -->
     <div class="status-bar">
         <div class="status-left">
@@ -890,40 +765,56 @@
     
     <script>
         // ============================================================
-        // CONSTANTS & MQTT
+        // MQTT CONFIGURATION
         // ============================================================
         const MQTT_BROKER   = 'df7f72e09ae84a60aa37e2f4e19c7356.s1.eu.hivemq.cloud';
         const MQTT_PORT     = 8884;
         const MQTT_USERNAME = 'ERI-Cluster';
         const MQTT_PASSWORD = 'Abc12345';
 
-        const SK_FB_CONFIG  = 'eri_fb_config_v1';  // localStorage key for Firebase config only
-        const SK_EVENTS_LCL = 'eri_events_local';   // localStorage fallback when Firebase not set up
+        // ── Persistence topics (all published as RETAINED, QoS 1) ──
+        // When a new device connects, the broker delivers these immediately
+        // before any live data, so every device sees the full history.
+        const TOPIC_PERSIST_RAW    = 'eri/persist/{node}/raw';    // last 24h, 1-per-10-sec max
+        const TOPIC_PERSIST_HOURLY = 'eri/persist/{node}/hourly'; // all-time hourly max
+        const TOPIC_PERSIST_DAILY  = 'eri/persist/{node}/daily';  // all-time daily max
+        const TOPIC_PERSIST_EVENTS = 'eri/persist/events';        // all unsafe events
 
-        let mqttClient       = null;
-        let db               = null;     // Firebase database ref
-        let fbApp            = null;
-        let fbReady          = false;
-        let fbListeners      = [];       // refs to detach on re-init
+        // ── Live sensor topics (not retained) ──
+        const TOPIC_LIVE_ACCEL  = 'eri/earthquake/+/acceleration';
+        const TOPIC_LIVE_STATUS = 'eri/earthquake/+/status';
+
+        // How often to push a snapshot back to the broker (ms)
+        const SNAPSHOT_INTERVAL_MS = 30000; // 30 seconds
+
+        let mqttClient      = null;
+        let historyReceived = { node1: false, node2: false, events: false };
+        let snapshotTimer   = null;
 
         let THRESHOLD_UNSAFE = 11.5;
         let BUFFER_DURATION  = 5;
 
         // ============================================================
-        // NODE STATE  (allData is for in-memory chart; Firebase is source-of-truth)
+        // NODE STATE
         // ============================================================
         const nodes = {
             node1: {
                 id: 'node1', name: 'Ground Floor', online: false,
                 currentMagnitude: 0, maxMagnitude: 0,
-                dataBuffer: [],   // rolling ~10-min buffer for event capture
-                allData: []       // in-memory cache: [[epochMs, mag], …] built from Firebase on load
+                dataBuffer:  [],  // rolling ~10-min for event capture
+                livePoints:  [],  // [[epochMs, mag]] every raw reading, full 1Hz — real-time chart
+                raw:         {},  // { tenSecBucketMs: maxMag } 1-per-10-sec — persisted snapshot
+                hourly:      {},  // { hourBucketMs: maxMag }
+                daily:       {}   // { dayBucketMs:  maxMag }
             },
             node2: {
                 id: 'node2', name: 'Top Floor', online: false,
                 currentMagnitude: 0, maxMagnitude: 0,
-                dataBuffer: [],
-                allData: []
+                dataBuffer:  [],
+                livePoints:  [],
+                raw:         {},
+                hourly:      {},
+                daily:       {}
             }
         };
 
@@ -943,145 +834,194 @@
             plugins: { legend: { display: false } },
             scales: {
                 x: { ticks: { color: '#9ca3af', maxTicksLimit: 8, font: { size: 10 } }, grid: { color: 'rgba(255,255,255,0.05)' } },
-                y: { ticks: { color: '#9ca3af' }, grid: { color: 'rgba(255,255,255,0.05)' }, title: { display: true, text: 'Magnitude (m/s²)', color: '#9ca3af' } }
+                y: { ticks: { color: '#9ca3af' }, grid: { color: 'rgba(255,255,255,0.05)' },
+                     title: { display: true, text: 'Magnitude (m/s²)', color: '#9ca3af' } }
             },
             animation: false
         };
 
         const node1Chart = new Chart(document.getElementById('node1Chart'), {
             type: 'line',
-            data: { labels: [], datasets: [{ label: 'Ground Floor', data: [], borderColor: '#06b6d4', backgroundColor: '#06b6d433', borderWidth: 2, tension: 0.4, fill: true }] },
+            data: { labels: [], datasets: [{ label: 'Ground Floor', data: [],
+                borderColor: '#06b6d4', backgroundColor: '#06b6d433', borderWidth: 2, tension: 0.4, fill: true }] },
             options: commonOptions
         });
         const node2Chart = new Chart(document.getElementById('node2Chart'), {
             type: 'line',
-            data: { labels: [], datasets: [{ label: 'Top Floor', data: [], borderColor: '#a855f7', backgroundColor: '#a855f733', borderWidth: 2, tension: 0.4, fill: true }] },
+            data: { labels: [], datasets: [{ label: 'Top Floor', data: [],
+                borderColor: '#a855f7', backgroundColor: '#a855f733', borderWidth: 2, tension: 0.4, fill: true }] },
             options: commonOptions
         });
 
         // ============================================================
-        // FIREBASE SETUP MODAL
+        // SYNC BADGE HELPERS
         // ============================================================
-        function showFirebaseSetup() {
-            document.getElementById('fbModal').classList.add('visible');
-            const saved = localStorage.getItem(SK_FB_CONFIG);
-            if (saved) {
-                try {
-                    const cfg = JSON.parse(saved);
-                    // Show config without databaseURL in the textarea (cleaner)
-                    const { databaseURL, ...rest } = cfg;
-                    document.getElementById('fbConfigInput').value = JSON.stringify(rest, null, 2);
-                    if (databaseURL) document.getElementById('fbDatabaseURL').value = databaseURL;
-                } catch (e) {
-                    document.getElementById('fbConfigInput').value = saved;
-                }
-            }
+        function setSyncBadge(state, text) {
+            const badge = document.getElementById('syncBadge');
+            const dot   = document.getElementById('syncDot');
+            badge.className = 'sync-badge ' + state;
+            dot.className   = 'sync-dot' + (state === 'syncing' ? ' pulse' : '');
+            document.getElementById('syncText').textContent = text;
         }
 
-        function closeFirebaseSetup() {
-            document.getElementById('fbModal').classList.remove('visible');
-        }
-
-        function saveFirebaseConfig() {
-            const raw     = document.getElementById('fbConfigInput').value.trim();
-            const dbURL   = document.getElementById('fbDatabaseURL').value.trim();
-            const errEl   = document.getElementById('fbModalError');
-            errEl.textContent = '';
-
-            if (!raw && !dbURL) {
-                errEl.textContent = '❌ Please paste your firebaseConfig and/or your Database URL.';
-                return;
+        function checkHistoryLoaded() {
+            if (historyReceived.node1 && historyReceived.node2 && historyReceived.events) {
+                setSyncBadge('synced', 'History: Loaded ✓');
+                updateSpanCharts();
+                updateHistoryUI();
             }
-
-            let config = {};
-
-            // Parse the config block if provided
-            if (raw) {
-                try {
-                    const cleaned = raw
-                        .replace(/^(const|var|let)\s+\w+\s*=\s*/, '')
-                        .replace(/;$/, '')
-                        .trim();
-                    config = JSON.parse(cleaned);
-                } catch (e) {
-                    try {
-                        config = Function('"use strict"; return (' +
-                            raw.replace(/^(const|var|let)\s+\w+\s*=\s*/, '').replace(/;$/, '') +
-                        ')')();
-                    } catch (e2) {
-                        errEl.textContent = '❌ Could not parse the firebaseConfig. Make sure you copied the full object (starting with { ).';
-                        return;
-                    }
-                }
-            }
-
-            // Override or inject databaseURL from the dedicated field
-            if (dbURL) {
-                config.databaseURL = dbURL;
-            }
-
-            // Final validation
-            if (!config.databaseURL) {
-                errEl.textContent = '❌ Database URL is missing. Paste it into the Database URL field above. Find it in Firebase Console → Build → Realtime Database → copy the URL at the top of the Data tab.';
-                return;
-            }
-            if (!config.databaseURL.startsWith('https://')) {
-                errEl.textContent = '❌ Database URL must start with https://  (e.g. https://your-project-default-rtdb.firebaseio.com)';
-                return;
-            }
-            if (!config.apiKey) {
-                errEl.textContent = '❌ apiKey is missing from the config. Make sure you copied the full firebaseConfig object from Project Settings.';
-                return;
-            }
-
-            localStorage.setItem(SK_FB_CONFIG, JSON.stringify(config));
-            closeFirebaseSetup();
-            initFirebase(config);
         }
 
         // ============================================================
-        // FIREBASE INIT & LISTENERS
+        // SNAPSHOT — compress & publish retained to broker
         // ============================================================
-        function setFbBadge(state, text) {
-            const badge = document.getElementById('fbBadge');
-            badge.className = 'fb-badge ' + state;
-            document.getElementById('fbBadgeText').textContent = text;
+        function buildSnapshot(nodeId) {
+            const node   = nodes[nodeId];
+            const now    = Date.now();
+            const cut24h = now - 86400000;
+
+            // Build the raw snapshot from livePoints — bucket into 10-second max slots.
+            // This gives ~8640 entries for 24h (well under MQTT message limits),
+            // but restores a graph that looks nearly identical to the live 1Hz view.
+            const tenSecBuckets = {};
+            node.livePoints.forEach(([ts, mag]) => {
+                const k = String(Math.floor(ts / 10000) * 10000);
+                if (tenSecBuckets[k] === undefined || mag > tenSecBuckets[k]) tenSecBuckets[k] = mag;
+            });
+            // Prune stale entries from node.raw too
+            Object.keys(node.raw).forEach(k => { if (Number(k) < cut24h) delete node.raw[k]; });
+            // Merge live buckets into node.raw
+            Object.entries(tenSecBuckets).forEach(([k, v]) => {
+                if (node.raw[k] === undefined || v > node.raw[k]) node.raw[k] = v;
+            });
+
+            const rawEntries = Object.entries(node.raw)
+                .map(([k, v]) => [Number(k), v])
+                .sort((a, b) => a[0] - b[0]);
+
+            return {
+                raw:          rawEntries,   // [[tenSecBucketMs, maxMag], ...]
+                hourly:       node.hourly,
+                daily:        node.daily,
+                maxMagnitude: node.maxMagnitude
+            };
         }
 
-        function initFirebase(config) {
-            setFbBadge('syncing', 'Firebase: Connecting…');
+        function publishSnapshots() {
+            if (!mqttClient || !mqttClient.isConnected()) return;
+
+            for (const nodeId of ['node1', 'node2']) {
+                const payload = JSON.stringify(buildSnapshot(nodeId));
+                const topic   = `eri/persist/${nodeId}/raw`;
+                const msg     = new Paho.MQTT.Message(payload);
+                msg.destinationName = topic;
+                msg.retained        = true;
+                msg.qos             = 1;
+                try { mqttClient.send(msg); } catch (e) { console.warn('[persist] send failed:', e); }
+            }
+
+            // Publish events
+            const evPayload = JSON.stringify(unsafeEvents.map(serializeEvent));
+            const evMsg     = new Paho.MQTT.Message(evPayload);
+            evMsg.destinationName = TOPIC_PERSIST_EVENTS;
+            evMsg.retained        = true;
+            evMsg.qos             = 1;
+            try { mqttClient.send(evMsg); } catch (e) { console.warn('[persist] events send failed:', e); }
+
+            setSyncBadge('synced', 'History: Synced ✓');
+        }
+
+        function scheduleSnapshot() {
+            if (snapshotTimer) return; // already scheduled
+            snapshotTimer = setTimeout(() => {
+                publishSnapshots();
+                snapshotTimer = null;
+            }, SNAPSHOT_INTERVAL_MS);
+        }
+
+        // ============================================================
+        // RESTORE — parse retained snapshot messages from broker
+        // ============================================================
+        function restoreSnapshot(nodeId, payload) {
             try {
-                // Destroy existing app if re-initializing
-                if (fbApp) { firebase.app().delete(); fbApp = null; db = null; }
-                fbApp = firebase.initializeApp(config);
-                db    = firebase.database();
+                const snap = JSON.parse(payload);
+                const node = nodes[nodeId];
 
-                db.ref('.info/connected').on('value', snap => {
-                    if (snap.val() === true) {
-                        fbReady = true;
-                        setFbBadge('connected', 'Firebase: Synced ✓');
-                        loadHistoricalData();
-                    } else {
-                        setFbBadge('syncing', 'Firebase: Reconnecting…');
-                    }
-                });
+                // Merge raw (10-second buckets)
+                if (Array.isArray(snap.raw)) {
+                    snap.raw.forEach(([k, v]) => {
+                        const key = String(k);
+                        if (node.raw[key] === undefined || v > node.raw[key]) node.raw[key] = v;
+                    });
 
-                // Listen for new events written by any device
-                db.ref('eri/events').on('child_added', snap => {
-                    const raw = snap.val();
-                    const ev  = hydrateEvent(raw);
-                    // Only add if not already in local list
-                    if (!unsafeEvents.find(e => e.id === ev.id)) {
-                        unsafeEvents.push(ev);
-                        unsafeEvents.sort((a, b) => b.timestamp - a.timestamp);
-                        updateHistoryUI();
-                    }
-                });
+                    // ── Seed livePoints from restored raw so the chart shows full
+                    //    history immediately on page load / refresh ──────────────
+                    // Convert each 10-sec bucket back into a point for livePoints.
+                    // Only add entries that aren't already in livePoints (avoid
+                    // duplicating points that arrived as live data before this
+                    // retained message was processed).
+                    const liveSet = new Set(node.livePoints.map(([ts]) => Math.floor(ts / 10000) * 10000));
+                    snap.raw.forEach(([k, v]) => {
+                        if (!liveSet.has(k)) node.livePoints.push([k, v]);
+                    });
+                    // Sort livePoints chronologically after seeding
+                    node.livePoints.sort((a, b) => a[0] - b[0]);
+                    // Trim anything older than 24h
+                    const cut24h = Date.now() - 86400000;
+                    while (node.livePoints.length > 0 && node.livePoints[0][0] < cut24h) node.livePoints.shift();
+                }
 
+                // Merge hourly
+                if (snap.hourly) {
+                    Object.entries(snap.hourly).forEach(([k, v]) => {
+                        if (node.hourly[k] === undefined || v > node.hourly[k]) node.hourly[k] = v;
+                    });
+                }
+
+                // Merge daily
+                if (snap.daily) {
+                    Object.entries(snap.daily).forEach(([k, v]) => {
+                        if (node.daily[k] === undefined || v > node.daily[k]) node.daily[k] = v;
+                    });
+                }
+
+                // Restore max magnitude
+                if (snap.maxMagnitude && snap.maxMagnitude > node.maxMagnitude) {
+                    node.maxMagnitude = snap.maxMagnitude;
+                    document.getElementById(`${nodeId}Max`).textContent = snap.maxMagnitude.toFixed(2);
+                }
+
+                historyReceived[nodeId] = true;
+                console.log(`[persist] Restored ${nodeId}: ${node.livePoints.length} chart pts, ${Object.keys(node.hourly).length} hourly, ${Object.keys(node.daily).length} daily`);
             } catch (e) {
-                setFbBadge('error', 'Firebase: Error');
-                console.error('[ERI Firebase] Init error:', e);
+                console.warn('[persist] restore failed:', nodeId, e);
+                historyReceived[nodeId] = true; // don't block on bad data
             }
+            checkHistoryLoaded();
+        }
+
+        function restoreEvents(payload) {
+            try {
+                const arr = JSON.parse(payload);
+                if (Array.isArray(arr)) {
+                    unsafeEvents = arr.map(hydrateEvent);
+                    unsafeEvents.sort((a, b) => b.timestamp - a.timestamp);
+                }
+            } catch (e) {
+                console.warn('[persist] events restore failed:', e);
+            }
+            historyReceived.events = true;
+            checkHistoryLoaded();
+        }
+
+        function serializeEvent(ev) {
+            return {
+                ...ev,
+                timestamp: ev.timestamp.toISOString(),
+                endTime:   ev.endTime.toISOString(),
+                node1Data: ev.node1Data.map(d => ({ ...d, timestamp: d.timestamp.toISOString() })),
+                node2Data: ev.node2Data.map(d => ({ ...d, timestamp: d.timestamp.toISOString() }))
+            };
         }
 
         function hydrateEvent(raw) {
@@ -1095,90 +1035,103 @@
         }
 
         // ============================================================
-        // HISTORICAL DATA LOAD (called once after Firebase connects)
+        // TIME SPAN SELECTOR
         // ============================================================
-        async function loadHistoricalData() {
-            showLoading('Loading all historical data from Firebase…');
-            try {
-                // Load raw readings for both nodes (all time)
-                for (const nodeId of ['node1', 'node2']) {
-                    updateLoadingText(`Loading ${nodes[nodeId].name} readings…`);
-                    const snap = await db.ref(`eri/readings/${nodeId}`).orderByKey().once('value');
-                    const val  = snap.val();
-                    if (val) {
-                        const pts = Object.entries(val).map(([k, v]) => [Number(k), v]);
-                        pts.sort((a, b) => a[0] - b[0]);
-                        nodes[nodeId].allData = pts;
-                        // Update max from history
-                        const maxHist = Math.max(...pts.map(p => p[1]));
-                        if (maxHist > nodes[nodeId].maxMagnitude) {
-                            nodes[nodeId].maxMagnitude = maxHist;
-                            document.getElementById(`${nodeId}Max`).textContent = maxHist.toFixed(2);
-                        }
-                    }
-                    console.log(`[ERI Firebase] Loaded ${nodes[nodeId].allData.length} pts for ${nodeId}`);
-                }
+        const spanLabels = {
+            '24H':  'Showing last 24 hours · Real-time (1Hz)',
+            '7D':   'Showing last 7 days · Hourly peak',
+            '30D':  'Showing last 30 days · Hourly peak',
+            '1Y':   'Showing last 365 days · Daily peak'
+        };
 
-                // Load all events
-                updateLoadingText('Loading event history…');
-                const evSnap = await db.ref('eri/events').orderByKey().once('value');
-                const evVal  = evSnap.val();
-                if (evVal) {
-                    unsafeEvents = Object.values(evVal).map(hydrateEvent);
-                    unsafeEvents.sort((a, b) => b.timestamp - a.timestamp);
-                }
+        function setTimeSpan(span) {
+            currentTimeSpan = span;
+            document.querySelectorAll('.span-btn').forEach(b => b.classList.remove('active'));
+            document.getElementById('span' + span).classList.add('active');
+            document.getElementById('spanInfo').textContent = spanLabels[span];
+            updateSpanCharts();
+        }
 
-                updateHistoryUI();
-                updateSpanCharts();
-            } catch (e) {
-                console.error('[ERI Firebase] Load error:', e);
-                setFbBadge('error', 'Firebase: Load failed');
-            } finally {
-                hideLoading();
+        function updateSpanCharts() {
+            for (const nodeId of ['node1', 'node2']) {
+                const { labels, data } = getSpanData(nodeId);
+                const chart = nodeId === 'node1' ? node1Chart : node2Chart;
+                chart.data.labels           = labels;
+                chart.data.datasets[0].data = data;
+                chart.update('none');
             }
         }
 
-        function showLoading(text) {
-            document.getElementById('fbLoadingText').textContent = text;
-            document.getElementById('fbLoading').classList.add('visible');
-        }
-        function updateLoadingText(text) {
-            document.getElementById('fbLoadingText').textContent = text;
-        }
-        function hideLoading() {
-            document.getElementById('fbLoading').classList.remove('visible');
+        function getSpanData(nodeId) {
+            const node = nodes[nodeId];
+            const now  = Date.now();
+
+            if (currentTimeSpan === '24H') {
+                // livePoints is always populated:
+                //  - On fresh session: seeded from the restored MQTT snapshot in restoreSnapshot()
+                //  - During live session: every 1Hz reading is pushed in updateAccelerationData()
+                // Cap display at 500 points for smooth rendering
+                const MAX_DISPLAY = 500;
+                const pts  = node.livePoints;
+                const step = Math.max(1, Math.floor(pts.length / MAX_DISPLAY));
+                const sampled = pts.filter((_, i) => i % step === 0);
+                return {
+                    labels: sampled.map(([k]) => new Date(k).toLocaleTimeString()),
+                    data:   sampled.map(([, v]) => v)
+                };
+            }
+
+            if (currentTimeSpan === '7D') {
+                const cut = now - 7 * 86400000;
+                const pts = Object.entries(node.hourly)
+                    .map(([k, v]) => [Number(k), v])
+                    .filter(([k]) => k >= cut)
+                    .sort((a, b) => a[0] - b[0]);
+                return {
+                    labels: pts.map(([k]) => fmtBucket(k, 'hourly')),
+                    data:   pts.map(([, v]) => v)
+                };
+            }
+
+            if (currentTimeSpan === '30D') {
+                // Group hourly into 4-hour buckets
+                const cut = now - 30 * 86400000;
+                const buckets = {};
+                Object.entries(node.hourly)
+                    .map(([k, v]) => [Number(k), v])
+                    .filter(([k]) => k >= cut)
+                    .forEach(([k, v]) => {
+                        const b = Math.floor(k / 14400000) * 14400000;
+                        if (buckets[b] === undefined || v > buckets[b]) buckets[b] = v;
+                    });
+                const pts = Object.entries(buckets).map(([k, v]) => [Number(k), v]).sort((a, b) => a[0] - b[0]);
+                return {
+                    labels: pts.map(([k]) => fmtBucket(k, 'hourly')),
+                    data:   pts.map(([, v]) => v)
+                };
+            }
+
+            if (currentTimeSpan === '1Y') {
+                const cut = now - 365 * 86400000;
+                const pts = Object.entries(node.daily)
+                    .map(([k, v]) => [Number(k), v])
+                    .filter(([k]) => k >= cut)
+                    .sort((a, b) => a[0] - b[0]);
+                return {
+                    labels: pts.map(([k]) => fmtBucket(k, 'daily')),
+                    data:   pts.map(([, v]) => v)
+                };
+            }
+
+            return { labels: [], data: [] };
         }
 
-        // ============================================================
-        // FIREBASE WRITE HELPERS
-        // ============================================================
-        function fbWriteReading(nodeId, epochMs, magnitude) {
-            if (!fbReady || !db) return;
-            // Write raw reading (key = epochMs for efficient range queries)
-            db.ref(`eri/readings/${nodeId}/${epochMs}`).set(magnitude).catch(e => console.warn('[FB write]', e));
-            // Update hourly aggregate (peak max per hour)
-            const hourKey = Math.floor(epochMs / 3600000) * 3600000;
-            db.ref(`eri/agg/${nodeId}/hourly/${hourKey}`).transaction(cur => {
-                return (cur === null || magnitude > cur) ? magnitude : cur;
-            });
-            // Update daily aggregate
-            const d = new Date(epochMs);
-            const dayKey = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
-            db.ref(`eri/agg/${nodeId}/daily/${dayKey}`).transaction(cur => {
-                return (cur === null || magnitude > cur) ? magnitude : cur;
-            });
-        }
-
-        function fbWriteEvent(event) {
-            if (!fbReady || !db) return;
-            const serialized = {
-                ...event,
-                timestamp: event.timestamp.toISOString(),
-                endTime:   event.endTime.toISOString(),
-                node1Data: event.node1Data.map(d => ({ ...d, timestamp: d.timestamp.toISOString() })),
-                node2Data: event.node2Data.map(d => ({ ...d, timestamp: d.timestamp.toISOString() }))
-            };
-            db.ref(`eri/events/${event.id}`).set(serialized).catch(e => console.warn('[FB event write]', e));
+        function fmtBucket(ts, type) {
+            const d  = new Date(ts);
+            const mm = String(d.getMonth() + 1).padStart(2, '0');
+            const dd = String(d.getDate()).padStart(2, '0');
+            const hh = String(d.getHours()).padStart(2, '0');
+            return type === 'daily' ? `${mm}/${dd}` : `${mm}/${dd} ${hh}:00`;
         }
 
         // ============================================================
@@ -1203,134 +1156,34 @@
         }
 
         // ============================================================
-        // TIME SPAN SELECTOR
-        // ============================================================
-        const spanLabels = {
-            '24H':  'Showing last 24 hours · All raw readings',
-            '7D':   'Showing last 7 days · Hourly peak',
-            '30D':  'Showing last 30 days · Hourly peak',
-            '1Y':   'Showing last 365 days · Daily peak'
-        };
-
-        function setTimeSpan(span) {
-            currentTimeSpan = span;
-            document.querySelectorAll('.span-btn').forEach(b => b.classList.remove('active'));
-            document.getElementById('span' + span).classList.add('active');
-            document.getElementById('spanInfo').textContent = spanLabels[span];
-            updateSpanCharts();
-        }
-
-        async function updateSpanCharts() {
-            for (const nodeId of ['node1', 'node2']) {
-                const { labels, data } = await getSpanData(nodeId);
-                const chart = nodeId === 'node1' ? node1Chart : node2Chart;
-                chart.data.labels           = labels;
-                chart.data.datasets[0].data = data;
-                chart.update('none');
-            }
-        }
-
-        async function getSpanData(nodeId) {
-            const now    = Date.now();
-            const node   = nodes[nodeId];
-
-            if (currentTimeSpan === '24H') {
-                // Use in-memory allData for fast live 24H view
-                const cutoff  = now - 86400000;
-                const pts     = node.allData.filter(d => d[0] >= cutoff);
-                const maxPts  = 600;
-                const step    = Math.max(1, Math.floor(pts.length / maxPts));
-                const sampled = [];
-                for (let i = 0; i < pts.length; i += step) sampled.push(pts[i]);
-                return {
-                    labels: sampled.map(d => new Date(d[0]).toLocaleTimeString()),
-                    data:   sampled.map(d => d[1])
-                };
-            }
-
-            // For 7D / 30D / 1Y — use Firebase aggregation buckets
-            if (!fbReady || !db) {
-                // Fallback to in-memory aggregation if Firebase not ready
-                return buildLocalAgg(nodeId);
-            }
-
-            let cutoff, aggPath, bucketMs;
-            switch (currentTimeSpan) {
-                case '7D':  cutoff = now - 7   * 86400000; aggPath = `eri/agg/${nodeId}/hourly`; bucketMs = 3600000;  break;
-                case '30D': cutoff = now - 30  * 86400000; aggPath = `eri/agg/${nodeId}/hourly`; bucketMs = 3600000;  break;
-                case '1Y':  cutoff = now - 365 * 86400000; aggPath = `eri/agg/${nodeId}/daily`;  bucketMs = 86400000; break;
-            }
-
-            try {
-                const snap = await db.ref(aggPath).orderByKey().startAt(String(cutoff)).once('value');
-                const val  = snap.val();
-                if (!val) return { labels: [], data: [] };
-                const keys = Object.keys(val).map(Number).sort((a, b) => a - b);
-
-                // For 30D use 4-hour grouping from hourly data
-                if (currentTimeSpan === '30D') {
-                    const grouped = {};
-                    keys.forEach(k => {
-                        const bucket = Math.floor(k / 14400000) * 14400000;
-                        if (grouped[bucket] === undefined || val[k] > grouped[bucket]) grouped[bucket] = val[k];
-                    });
-                    const gKeys = Object.keys(grouped).map(Number).sort((a, b) => a - b);
-                    return { labels: gKeys.map(k => fmtBucket(k)), data: gKeys.map(k => grouped[k]) };
-                }
-
-                return { labels: keys.map(k => fmtBucket(k)), data: keys.map(k => val[k]) };
-            } catch (e) {
-                console.warn('[ERI] Agg fetch failed, using local:', e);
-                return buildLocalAgg(nodeId);
-            }
-        }
-
-        function buildLocalAgg(nodeId) {
-            const now = Date.now();
-            let cutoff, bucketMs;
-            switch (currentTimeSpan) {
-                case '7D':  cutoff = now - 7   * 86400000; bucketMs = 3600000;  break;
-                case '30D': cutoff = now - 30  * 86400000; bucketMs = 14400000; break;
-                case '1Y':  cutoff = now - 365 * 86400000; bucketMs = 86400000; break;
-                default:    cutoff = now - 86400000;        bucketMs = null;
-            }
-            const pts = nodes[nodeId].allData.filter(d => d[0] >= cutoff);
-            if (!bucketMs) return { labels: pts.map(d => new Date(d[0]).toLocaleTimeString()), data: pts.map(d => d[1]) };
-            const buckets = {};
-            pts.forEach(([ts, mag]) => {
-                const k = Math.floor(ts / bucketMs) * bucketMs;
-                if (buckets[k] === undefined || mag > buckets[k]) buckets[k] = mag;
-            });
-            const keys = Object.keys(buckets).map(Number).sort((a, b) => a - b);
-            return { labels: keys.map(k => fmtBucket(k)), data: keys.map(k => buckets[k]) };
-        }
-
-        function fmtBucket(ts) {
-            const d  = new Date(ts);
-            const mm = String(d.getMonth() + 1).padStart(2, '0');
-            const dd = String(d.getDate()).padStart(2, '0');
-            const hh = String(d.getHours()).padStart(2, '0');
-            if (currentTimeSpan === '1Y')  return `${mm}/${dd}`;
-            return `${mm}/${dd} ${hh}:00`;
-        }
-
-        // ============================================================
         // CLEAR ALL DATA
         // ============================================================
         function clearAllData() {
-            if (!confirm('⚠️ Clear ALL recorded data, events, and Firebase entries?\n\nThis cannot be undone.')) return;
+            if (!confirm('⚠️ Clear ALL recorded data and events?\n\nThis will also clear the persisted history on the MQTT broker. Cannot be undone.')) return;
+
             unsafeEvents = [];
-            nodes.node1.allData = []; nodes.node1.maxMagnitude = 0; nodes.node1.dataBuffer = [];
-            nodes.node2.allData = []; nodes.node2.maxMagnitude = 0; nodes.node2.dataBuffer = [];
-            document.getElementById('node1Max').textContent = '0.0';
-            document.getElementById('node2Max').textContent = '0.0';
-            Object.values(eventCharts).forEach(c => c.destroy()); eventCharts = {};
-            localStorage.removeItem(SK_EVENTS_LCL);
-            if (fbReady && db) {
-                db.ref('eri/readings').remove();
-                db.ref('eri/agg').remove();
-                db.ref('eri/events').remove();
+            for (const id of ['node1', 'node2']) {
+                nodes[id].raw = {}; nodes[id].hourly = {}; nodes[id].daily = {};
+                nodes[id].livePoints = [];
+                nodes[id].maxMagnitude = 0; nodes[id].dataBuffer = [];
+                document.getElementById(`${id}Max`).textContent = '0.0';
             }
+            Object.values(eventCharts).forEach(c => c.destroy()); eventCharts = {};
+
+            // Publish empty retained messages to clear broker history
+            if (mqttClient && mqttClient.isConnected()) {
+                ['node1', 'node2'].forEach(nodeId => {
+                    const msg = new Paho.MQTT.Message('{}');
+                    msg.destinationName = `eri/persist/${nodeId}/raw`;
+                    msg.retained = true; msg.qos = 1;
+                    try { mqttClient.send(msg); } catch (e) {}
+                });
+                const evMsg = new Paho.MQTT.Message('[]');
+                evMsg.destinationName = TOPIC_PERSIST_EVENTS;
+                evMsg.retained = true; evMsg.qos = 1;
+                try { mqttClient.send(evMsg); } catch (e) {}
+            }
+
             updateHistoryUI();
             updateSpanCharts();
         }
@@ -1339,28 +1192,49 @@
         // MQTT
         // ============================================================
         function connectMQTT() {
-            const clientId = 'ERI_Enhanced_' + Math.random().toString(16).substr(2, 8);
+            const clientId = 'ERI_Dashboard_' + Math.random().toString(16).substr(2, 8);
             mqttClient = new Paho.MQTT.Client(MQTT_BROKER, MQTT_PORT, '/mqtt', clientId);
             mqttClient.onConnectionLost = onConnectionLost;
             mqttClient.onMessageArrived = onMessageArrived;
-            mqttClient.connect({ userName: MQTT_USERNAME, password: MQTT_PASSWORD, onSuccess: onConnect, onFailure: onFailure, useSSL: true });
+            mqttClient.connect({
+                userName: MQTT_USERNAME, password: MQTT_PASSWORD,
+                onSuccess: onConnect, onFailure: onFailure, useSSL: true,
+                cleanSession: true   // always start fresh; history comes via retained msgs
+            });
             document.getElementById('connectBtn').disabled    = true;
             document.getElementById('connectBtn').textContent = '⏳ Connecting...';
+            setSyncBadge('syncing', 'History: Loading…');
         }
 
         function onConnect() {
             document.getElementById('connectBtn').textContent = '✓ Connected';
             document.getElementById('connectBtn').classList.remove('btn-success');
             document.getElementById('onlineStatus').textContent = 'Online';
-            mqttClient.subscribe('eri/earthquake/+/acceleration');
-            mqttClient.subscribe('eri/earthquake/+/status');
-            document.getElementById('statusInfo').textContent = 'Connected to MQTT broker, waiting for data...';
+
+            // ── Subscribe to persistence topics FIRST ──────────────────
+            // The broker will deliver retained messages immediately on subscribe,
+            // before any live data. This restores full history on every device.
+            mqttClient.subscribe('eri/persist/#', { qos: 1 });
+
+            // ── Then subscribe to live sensor topics ────────────────────
+            mqttClient.subscribe(TOPIC_LIVE_ACCEL,  { qos: 0 });
+            mqttClient.subscribe(TOPIC_LIVE_STATUS, { qos: 0 });
+
+            document.getElementById('statusInfo').textContent = 'Connected — loading history from broker…';
+
+            // Failsafe: mark history as loaded after 5s even if no retained msgs exist yet
+            setTimeout(() => {
+                if (!historyReceived.node1) { historyReceived.node1 = true; checkHistoryLoaded(); }
+                if (!historyReceived.node2) { historyReceived.node2 = true; checkHistoryLoaded(); }
+                if (!historyReceived.events){ historyReceived.events= true; checkHistoryLoaded(); }
+            }, 5000);
         }
 
         function onFailure(error) {
-            console.error('[MQTT] Connection failed:', error);
+            console.error('[MQTT] Failed:', error);
             document.getElementById('connectBtn').disabled    = false;
             document.getElementById('connectBtn').textContent = '🔌 Reconnect';
+            setSyncBadge('', 'History: Disconnected');
         }
 
         function onConnectionLost() {
@@ -1368,22 +1242,38 @@
             document.getElementById('connectBtn').textContent = '🔌 Reconnect';
             document.getElementById('connectBtn').classList.add('btn-success');
             document.getElementById('onlineStatus').textContent = 'Disconnected';
+            setSyncBadge('', 'History: Disconnected');
         }
 
         function onMessageArrived(message) {
             const topic   = message.destinationName;
-            const payload = JSON.parse(message.payloadString);
-            const parts   = topic.split('/');
-            const nodeId  = parts[2];
-            const type    = parts[3];
-            if (!nodes[nodeId]) return;
-            if (type === 'acceleration') {
-                updateAccelerationData(nodeId, payload);
-            } else if (type === 'status' && payload.status === 'online') {
-                nodes[nodeId].online = true;
-                const el = document.getElementById(`${nodeId}Status`);
-                el.textContent = 'Online'; el.classList.remove('offline'); el.classList.add('online');
+            const payload = message.payloadString;
+
+            // ── Persistence / history topics ────────────────────────────
+            if (topic.startsWith('eri/persist/')) {
+                if (topic === 'eri/persist/node1/raw') { restoreSnapshot('node1', payload); return; }
+                if (topic === 'eri/persist/node2/raw') { restoreSnapshot('node2', payload); return; }
+                if (topic === TOPIC_PERSIST_EVENTS)    { restoreEvents(payload); return; }
+                return; // ignore other persist sub-topics
             }
+
+            // ── Live sensor topics ───────────────────────────────────────
+            const parts  = topic.split('/');
+            const nodeId = parts[2];
+            const type   = parts[3];
+            if (!nodes[nodeId]) return;
+
+            if (type === 'acceleration') {
+                updateAccelerationData(nodeId, JSON.parse(payload));
+            } else if (type === 'status') {
+                const p = JSON.parse(payload);
+                if (p.status === 'online') {
+                    nodes[nodeId].online = true;
+                    const el = document.getElementById(`${nodeId}Status`);
+                    el.textContent = 'Online'; el.classList.remove('offline'); el.classList.add('online');
+                }
+            }
+
             document.getElementById('lastUpdate').textContent = new Date().toLocaleTimeString();
         }
 
@@ -1391,9 +1281,9 @@
         // LIVE DATA UPDATE
         // ============================================================
         function updateAccelerationData(nodeId, data) {
-            const node = nodes[nodeId];
+            const node    = nodes[nodeId];
             const { x, y, z, magnitude } = data;
-            const now = new Date();
+            const now     = new Date();
             const epochMs = now.getTime();
 
             node.currentMagnitude = magnitude;
@@ -1402,20 +1292,39 @@
                 document.getElementById(`${nodeId}Max`).textContent = magnitude.toFixed(2);
             }
 
-            // Rolling dataBuffer for event capture (10-min = 600 pts at 1Hz)
+            // Rolling dataBuffer for event capture
             node.dataBuffer.push({ timestamp: now, magnitude, x, y, z });
             if (node.dataBuffer.length > 600) node.dataBuffer.shift();
 
-            // In-memory allData for chart
-            node.allData.push([epochMs, magnitude]);
+            // ── livePoints: every raw reading at full 1Hz, kept for last 24h ──
+            node.livePoints.push([epochMs, magnitude]);
+            // Trim points older than 24h
+            const cut24h = epochMs - 86400000;
+            while (node.livePoints.length > 0 && node.livePoints[0][0] < cut24h) node.livePoints.shift();
 
-            // Write to Firebase (raw + aggregates)
-            fbWriteReading(nodeId, epochMs, magnitude);
+            // ── Aggregation buckets for persistence & longer spans ───────────
+            // 10-second bucket for persisted raw snapshot (gives much better graph
+            // resolution after page refresh vs the old 1-minute bucket)
+            const tenSecKey = String(Math.floor(epochMs / 10000) * 10000);
+            if (node.raw[tenSecKey] === undefined || magnitude > node.raw[tenSecKey]) node.raw[tenSecKey] = magnitude;
 
+            // Hourly bucket (7D / 30D view)
+            const hourKey = String(Math.floor(epochMs / 3600000) * 3600000);
+            if (node.hourly[hourKey] === undefined || magnitude > node.hourly[hourKey]) node.hourly[hourKey] = magnitude;
+
+            // Daily bucket (1Y view)
+            const d       = new Date(epochMs);
+            const dayKey  = String(new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime());
+            if (node.daily[dayKey] === undefined || magnitude > node.daily[dayKey]) node.daily[dayKey] = magnitude;
+
+            // Update displays
             document.getElementById(`${nodeId}Current`).textContent = magnitude.toFixed(2);
 
-            // Only redraw the 24H chart in real-time (others need explicit fetch)
+            // Redraw chart in real-time for 24H; others on demand
             if (currentTimeSpan === '24H') updateSpanCharts();
+
+            // Schedule snapshot publish (debounced to every 30s)
+            scheduleSnapshot();
 
             checkStructureStatus();
         }
@@ -1479,14 +1388,9 @@
                 bufferDuration: BUFFER_DURATION
             };
 
-            // Write to Firebase (other devices will receive via child_added listener)
-            fbWriteEvent(event);
-
-            // Add locally only if Firebase is not ready (avoid duplicate from listener)
-            if (!fbReady) {
-                unsafeEvents.unshift(event);
-                updateHistoryUI();
-            }
+            unsafeEvents.unshift(event);
+            updateHistoryUI();
+            publishSnapshots(); // immediate publish on new event
         }
 
         // ============================================================
@@ -1524,7 +1428,10 @@
                     <div class="history-item">
                         <div class="history-item-header">
                             <div class="history-timestamp">${event.timestamp.toLocaleString()}</div>
-                            <div class="history-badge">UNSAFE EVENT #${event.id}</div>
+                            <div style="display:flex;align-items:center;gap:0.6rem;">
+                                <button class="btn-export btn-export-sm" onclick="exportEventCSV(${event.id})" title="Export this event's data as CSV">⬇ CSV</button>
+                                <div class="history-badge">UNSAFE EVENT #${event.id}</div>
+                            </div>
                         </div>
                         <div class="history-details">
                             <div class="history-detail"><div class="history-detail-label">Duration</div><div class="history-detail-value">${event.duration.toFixed(1)}s</div></div>
@@ -1556,7 +1463,7 @@
         }
 
         // ============================================================
-        // EVENT DETAIL CHART
+        // EVENT DETAIL CHART  (±buffer window with shaded unsafe region)
         // ============================================================
         function renderEventChart(event) {
             const canvas = document.getElementById(`eventChart_${event.id}`);
@@ -1624,12 +1531,15 @@
                     interaction: { mode: 'index', intersect: false },
                     plugins: {
                         legend: { display: false },
-                        tooltip: { backgroundColor: '#1a2332', borderColor: '#2d3748', borderWidth: 1, titleColor: '#9ca3af', bodyColor: '#fff', padding: 10,
-                            callbacks: { label: ctx => ` ${ctx.dataset.label}: ${ctx.parsed.y !== null ? ctx.parsed.y.toFixed(3)+' m/s²' : 'N/A'}` } }
+                        tooltip: { backgroundColor: '#1a2332', borderColor: '#2d3748', borderWidth: 1,
+                            titleColor: '#9ca3af', bodyColor: '#fff', padding: 10,
+                            callbacks: { label: c => ` ${c.dataset.label}: ${c.parsed.y !== null ? c.parsed.y.toFixed(3)+' m/s²' : 'N/A'}` } }
                     },
                     scales: {
-                        x: { ticks: { color: '#6b7280', maxTicksLimit: 12, font: { size: 10 } }, grid: { color: 'rgba(255,255,255,0.04)' }, title: { display: true, text: 'Time from capture start (s)', color: '#6b7280', font: { size: 10 } } },
-                        y: { ticks: { color: '#6b7280', font: { size: 10 } }, grid: { color: 'rgba(255,255,255,0.04)' }, title: { display: true, text: 'Magnitude (m/s²)', color: '#6b7280', font: { size: 10 } } }
+                        x: { ticks: { color: '#6b7280', maxTicksLimit: 12, font: { size: 10 } }, grid: { color: 'rgba(255,255,255,0.04)' },
+                             title: { display: true, text: 'Time from capture start (s)', color: '#6b7280', font: { size: 10 } } },
+                        y: { ticks: { color: '#6b7280', font: { size: 10 } }, grid: { color: 'rgba(255,255,255,0.04)' },
+                             title: { display: true, text: 'Magnitude (m/s²)', color: '#6b7280', font: { size: 10 } } }
                     },
                     animation: false
                 }
@@ -1637,24 +1547,186 @@
         }
 
         // ============================================================
+        // CSV EXPORT
+        // ============================================================
+
+        /** Trigger a CSV file download in the browser */
+        function downloadCSV(filename, csvContent) {
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const url  = URL.createObjectURL(blob);
+            const a    = document.createElement('a');
+            a.href     = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+
+        /** Escape a CSV field — wraps in quotes if it contains comma, quote, or newline */
+        function csvField(val) {
+            const s = String(val ?? '');
+            return (s.includes(',') || s.includes('"') || s.includes('\n'))
+                ? '"' + s.replace(/"/g, '""') + '"'
+                : s;
+        }
+
+        /**
+         * Export a node's full livePoints history as CSV.
+         * Columns: Timestamp, Epoch_ms, Magnitude_m_s2
+         */
+        function exportNodeCSV(nodeId) {
+            const node     = nodes[nodeId];
+            const nodeName = node.name;
+            const pts      = node.livePoints;
+
+            if (pts.length === 0) {
+                alert(`No data recorded yet for ${nodeName}.`);
+                return;
+            }
+
+            const rows = [
+                ['ERI - ' + nodeName + ' Acceleration Data'],
+                ['Structure', csvField(document.getElementById('structureName').value)],
+                ['Exported',  csvField(new Date().toLocaleString())],
+                ['Total Points', pts.length],
+                [],
+                ['Timestamp', 'Epoch_ms', 'Magnitude_m_s2']
+            ];
+
+            pts.forEach(([epochMs, mag]) => {
+                rows.push([
+                    csvField(new Date(epochMs).toLocaleString()),
+                    epochMs,
+                    mag.toFixed(4)
+                ]);
+            });
+
+            const csv      = rows.map(r => r.join(',')).join('\r\n');
+            const dateStr  = new Date().toISOString().slice(0, 10);
+            const filename = `ERI_${nodeName.replace(/\s+/g, '_')}_${dateStr}.csv`;
+            downloadCSV(filename, csv);
+        }
+
+        /**
+         * Export a single unsafe event's captured data (both nodes) as CSV.
+         * Columns: Timestamp, Epoch_ms, Node, Magnitude_m_s2, X_m_s2, Y_m_s2, Z_m_s2
+         */
+        function exportEventCSV(eventId) {
+            const event = unsafeEvents.find(e => e.id === eventId);
+            if (!event) return;
+
+            const buf      = event.bufferDuration || BUFFER_DURATION;
+            const allPts   = [
+                ...event.node1Data.map(d => ({ ...d, nodeName: 'Ground Floor' })),
+                ...event.node2Data.map(d => ({ ...d, nodeName: 'Top Floor'    }))
+            ].sort((a, b) => a.timestamp - b.timestamp);
+
+            const rows = [
+                ['ERI - Unsafe Event #' + event.id],
+                ['Structure',     csvField(event.structureName)],
+                ['Event Start',   csvField(event.timestamp.toLocaleString())],
+                ['Event End',     csvField(event.endTime.toLocaleString())],
+                ['Duration_s',    event.duration.toFixed(2)],
+                ['Max_Magnitude', event.maxMagnitude.toFixed(4)],
+                ['Buffer_s',      buf],
+                ['Exported',      csvField(new Date().toLocaleString())],
+                [],
+                ['Timestamp', 'Epoch_ms', 'Node', 'Magnitude_m_s2', 'X_m_s2', 'Y_m_s2', 'Z_m_s2']
+            ];
+
+            allPts.forEach(d => {
+                const epochMs = d.timestamp.getTime();
+                rows.push([
+                    csvField(d.timestamp.toLocaleString()),
+                    epochMs,
+                    csvField(d.nodeName),
+                    d.magnitude.toFixed(4),
+                    (d.x ?? '').toString(),
+                    (d.y ?? '').toString(),
+                    (d.z ?? '').toString()
+                ]);
+            });
+
+            const csv      = rows.map(r => r.join(',')).join('\r\n');
+            const dateStr  = event.timestamp.toISOString().slice(0, 10);
+            const filename = `ERI_Event${event.id}_${dateStr}.csv`;
+            downloadCSV(filename, csv);
+        }
+
+        /**
+         * Export ALL unsafe events as a single CSV summary.
+         * One row per event, plus a second sheet-style block with all raw captured readings.
+         */
+        function exportAllEventsCSV() {
+            if (unsafeEvents.length === 0) {
+                alert('No unsafe events recorded yet.');
+                return;
+            }
+
+            const structure = csvField(document.getElementById('structureName').value);
+            const rows = [
+                ['ERI - All Unsafe Events Summary'],
+                ['Structure', structure],
+                ['Exported',  csvField(new Date().toLocaleString())],
+                ['Total Events', unsafeEvents.length],
+                [],
+                // ── Summary table ──
+                ['Event_ID', 'Start_Timestamp', 'End_Timestamp', 'Duration_s',
+                 'Max_Magnitude_m_s2', 'Buffer_s',
+                 'Ground_Floor_Samples', 'Top_Floor_Samples', 'Structure']
+            ];
+
+            unsafeEvents.forEach(ev => {
+                rows.push([
+                    ev.id,
+                    csvField(ev.timestamp.toLocaleString()),
+                    csvField(ev.endTime.toLocaleString()),
+                    ev.duration.toFixed(2),
+                    ev.maxMagnitude.toFixed(4),
+                    ev.bufferDuration || BUFFER_DURATION,
+                    ev.node1Data.length,
+                    ev.node2Data.length,
+                    csvField(ev.structureName)
+                ]);
+            });
+
+            // ── Detailed readings for every event ──
+            rows.push([]);
+            rows.push(['--- DETAILED EVENT READINGS ---']);
+            rows.push(['Event_ID', 'Timestamp', 'Epoch_ms', 'Node',
+                       'Magnitude_m_s2', 'X_m_s2', 'Y_m_s2', 'Z_m_s2']);
+
+            unsafeEvents.forEach(ev => {
+                const allPts = [
+                    ...ev.node1Data.map(d => ({ ...d, nodeName: 'Ground Floor' })),
+                    ...ev.node2Data.map(d => ({ ...d, nodeName: 'Top Floor'    }))
+                ].sort((a, b) => a.timestamp - b.timestamp);
+
+                allPts.forEach(d => {
+                    rows.push([
+                        ev.id,
+                        csvField(d.timestamp.toLocaleString()),
+                        d.timestamp.getTime(),
+                        csvField(d.nodeName),
+                        d.magnitude.toFixed(4),
+                        (d.x ?? '').toString(),
+                        (d.y ?? '').toString(),
+                        (d.z ?? '').toString()
+                    ]);
+                });
+            });
+
+            const csv      = rows.map(r => r.join(',')).join('\r\n');
+            const dateStr  = new Date().toISOString().slice(0, 10);
+            const filename = `ERI_AllEvents_${dateStr}.csv`;
+            downloadCSV(filename, csv);
+        }
+
+        // ============================================================
         // INIT
         // ============================================================
         window.addEventListener('load', () => {
-            // Load Firebase config from localStorage (one-time setup)
-            const savedConfig = localStorage.getItem(SK_FB_CONFIG);
-            if (savedConfig) {
-                try {
-                    initFirebase(JSON.parse(savedConfig));
-                } catch (e) {
-                    console.warn('[ERI] Saved Firebase config invalid, showing setup modal');
-                    setTimeout(showFirebaseSetup, 800);
-                }
-            } else {
-                // First time — show setup modal after short delay
-                setTimeout(showFirebaseSetup, 600);
-            }
-
-            // Always auto-connect MQTT for live sensor data
             connectMQTT();
         });
     </script>
