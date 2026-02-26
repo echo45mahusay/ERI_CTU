@@ -829,28 +829,56 @@
         // ============================================================
         // CHART INITIALIZATION
         // ============================================================
-        const commonOptions = {
+        // Shared y-axis and layout options (x-axis is configured dynamically per span)
+        const commonScaleY = {
+            ticks: { color: '#9ca3af' },
+            grid:  { color: 'rgba(255,255,255,0.05)' },
+            title: { display: true, text: 'Magnitude (m/s²)', color: '#9ca3af' }
+        };
+
+        // Initial options — will be mutated when switching spans
+        const makeChartOptions = () => ({
             responsive: true, maintainAspectRatio: false,
             plugins: { legend: { display: false } },
             scales: {
-                x: { ticks: { color: '#9ca3af', maxTicksLimit: 8, font: { size: 10 } }, grid: { color: 'rgba(255,255,255,0.05)' } },
-                y: { ticks: { color: '#9ca3af' }, grid: { color: 'rgba(255,255,255,0.05)' },
-                     title: { display: true, text: 'Magnitude (m/s²)', color: '#9ca3af' } }
+                x: {
+                    type: 'linear',
+                    min: 0, max: 86400,
+                    ticks: {
+                        color: '#9ca3af',
+                        maxTicksLimit: 13,   // every 2 hours
+                        font: { size: 10 },
+                        callback: secToHHMM
+                    },
+                    grid: { color: 'rgba(255,255,255,0.05)' },
+                    title: { display: true, text: 'Time of Day', color: '#6b7280', font: { size: 10 } }
+                },
+                y: commonScaleY
             },
             animation: false
-        };
+        });
+
+        function secToHHMM(val) {
+            const h = Math.floor(val / 3600);
+            const m = Math.floor((val % 3600) / 60);
+            return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`;
+        }
 
         const node1Chart = new Chart(document.getElementById('node1Chart'), {
             type: 'line',
             data: { labels: [], datasets: [{ label: 'Ground Floor', data: [],
-                borderColor: '#06b6d4', backgroundColor: '#06b6d433', borderWidth: 2, tension: 0.4, fill: true }] },
-            options: commonOptions
+                borderColor: '#06b6d4', backgroundColor: '#06b6d433',
+                borderWidth: 2, tension: 0.3, fill: true,
+                pointRadius: 0, pointHoverRadius: 4 }] },
+            options: makeChartOptions()
         });
         const node2Chart = new Chart(document.getElementById('node2Chart'), {
             type: 'line',
             data: { labels: [], datasets: [{ label: 'Top Floor', data: [],
-                borderColor: '#a855f7', backgroundColor: '#a855f733', borderWidth: 2, tension: 0.4, fill: true }] },
-            options: commonOptions
+                borderColor: '#a855f7', backgroundColor: '#a855f733',
+                borderWidth: 2, tension: 0.3, fill: true,
+                pointRadius: 0, pointHoverRadius: 4 }] },
+            options: makeChartOptions()
         });
 
         // ============================================================
@@ -1038,7 +1066,7 @@
         // TIME SPAN SELECTOR
         // ============================================================
         const spanLabels = {
-            '24H':  'Showing last 24 hours · Real-time (1Hz)',
+            '24H':  "Today's readings · 00:00 → 24:00 fixed axis",
             '7D':   'Showing last 7 days · Hourly peak',
             '30D':  'Showing last 30 days · Hourly peak',
             '1Y':   'Showing last 365 days · Daily peak'
@@ -1053,33 +1081,68 @@
         }
 
         function updateSpanCharts() {
+            const is24H = currentTimeSpan === '24H';
+
             for (const nodeId of ['node1', 'node2']) {
-                const { labels, data } = getSpanData(nodeId);
                 const chart = nodeId === 'node1' ? node1Chart : node2Chart;
-                chart.data.labels           = labels;
-                chart.data.datasets[0].data = data;
+
+                if (is24H) {
+                    // ── Fixed 00:00 → 24:00 linear axis ──────────────────────────
+                    const pts = get24HPoints(nodeId);
+
+                    chart.options.scales.x.type           = 'linear';
+                    chart.options.scales.x.min            = 0;
+                    chart.options.scales.x.max            = 86400;
+                    chart.options.scales.x.ticks.callback = secToHHMM;
+                    chart.options.scales.x.ticks.maxTicksLimit = 13;  // tick every 2 h
+                    chart.options.scales.x.title          = { display: true, text: 'Time of Day', color: '#6b7280', font: { size: 10 } };
+
+                    chart.data.labels              = [];   // not used in linear mode
+                    chart.data.datasets[0].data    = pts;  // [{x: secFromMidnight, y: mag}]
+                } else {
+                    // ── Category axis for 7D / 30D / 1Y ──────────────────────────
+                    const { labels, data } = getSpanData(nodeId);
+
+                    chart.options.scales.x.type               = 'category';
+                    delete chart.options.scales.x.min;
+                    delete chart.options.scales.x.max;
+                    chart.options.scales.x.ticks.callback     = undefined;
+                    chart.options.scales.x.ticks.maxTicksLimit = 8;
+                    chart.options.scales.x.title              = { display: false };
+
+                    chart.data.labels           = labels;
+                    chart.data.datasets[0].data = data;
+                }
+
                 chart.update('none');
             }
+        }
+
+        /**
+         * Returns today's livePoints as [{x: secondsFromMidnight, y: magnitude}]
+         * filtered to the current calendar day (00:00 → now), downsampled to ≤500 pts.
+         */
+        function get24HPoints(nodeId) {
+            const now      = new Date();
+            const dayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+
+            // Filter to today only (livePoints may hold up to 24 rolling hours,
+            // which can include data from yesterday near midnight)
+            const todayPts = nodes[nodeId].livePoints
+                .filter(([ts]) => ts >= dayStart)
+                .map(([ts, mag]) => ({ x: (ts - dayStart) / 1000, y: mag }));
+
+            // Downsample evenly to keep rendering smooth
+            const MAX  = 500;
+            const step = Math.max(1, Math.floor(todayPts.length / MAX));
+            return todayPts.filter((_, i) => i % step === 0);
         }
 
         function getSpanData(nodeId) {
             const node = nodes[nodeId];
             const now  = Date.now();
 
-            if (currentTimeSpan === '24H') {
-                // livePoints is always populated:
-                //  - On fresh session: seeded from the restored MQTT snapshot in restoreSnapshot()
-                //  - During live session: every 1Hz reading is pushed in updateAccelerationData()
-                // Cap display at 500 points for smooth rendering
-                const MAX_DISPLAY = 500;
-                const pts  = node.livePoints;
-                const step = Math.max(1, Math.floor(pts.length / MAX_DISPLAY));
-                const sampled = pts.filter((_, i) => i % step === 0);
-                return {
-                    labels: sampled.map(([k]) => new Date(k).toLocaleTimeString()),
-                    data:   sampled.map(([, v]) => v)
-                };
-            }
+            // Note: 24H is handled separately by get24HPoints() above.
 
             if (currentTimeSpan === '7D') {
                 const cut = now - 7 * 86400000;
