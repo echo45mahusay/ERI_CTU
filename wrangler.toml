@@ -1,8 +1,20 @@
+# wrangler.toml — Cloudflare Pages (static site, no build step)
+#
+# Deploy via Cloudflare Dashboard (recommended):
+#   1. Push this folder to a GitHub repo
+#   2. Cloudflare Dashboard → Pages → Create a project → Connect to Git
+#   3. Set:  Framework preset  = None
+#            Build command     = (LEAVE BLANK)
+#            Build output dir  = /
+#   4. Save and Deploy
+#
+# Deploy via CLI:
+#   npx wrangler pages deploy . --project-name eri-earthquake-dashboard
+
 name = "eri-earthquake-dashboard"
 compatibility_date = "2026-02-13"
 
-[site]
-bucket = "./"
-
-# This tells Cloudflare to serve static files from the root directory
+# For Pages projects, only pages_build_output_dir is needed.
+# The [site] block is for Workers Sites (a different product) and
+# should NOT be used here — it caused the original deploy to fail.
 pages_build_output_dir = "./"

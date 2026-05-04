@@ -1,1734 +1,1464 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ERI - Enhanced Multi-Node Dashboard</title>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.0.1/mqttws31.min.js"></script>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <style>
-        :root {
-            --bg-primary: #0a0e17;
-            --bg-secondary: #111827;
-            --bg-card: #1a2332;
-            --text-primary: #ffffff;
-            --text-secondary: #9ca3af;
-            --text-muted: #6b7280;
-            --accent-cyan: #06b6d4;
-            --accent-green: #10b981;
-            --accent-yellow: #fbbf24;
-            --accent-red: #ef4444;
-            --accent-purple: #a855f7;
-            --border-color: #2d3748;
-        }
-        
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        
-        body {
-            font-family: 'JetBrains Mono', monospace;
-            background: var(--bg-primary);
-            color: var(--text-primary);
-            overflow-x: hidden;
-        }
-        
-        /* Top Navigation */
-        .top-nav {
-            background: var(--bg-secondary);
-            border-bottom: 1px solid var(--border-color);
-            position: sticky;
-            top: 0;
-            z-index: 100;
-        }
-        
-        .nav-container {
-            max-width: 1800px;
-            margin: 0 auto;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            padding: 0 2rem;
-        }
-        
-        .nav-brand {
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-            padding: 1rem 0;
-        }
-        
-        .nav-logo {
-            width: 24px;
-            height: 24px;
-            background: var(--accent-cyan);
-            clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);
-        }
-        
-        .nav-title {
-            font-size: 1rem;
-            font-weight: 700;
-            letter-spacing: 0.5px;
-        }
-        
-        .nav-tabs {
-            display: flex;
-            gap: 0;
-        }
-        
-        .nav-tab {
-            padding: 1.5rem 2rem;
-            background: transparent;
-            border: none;
-            border-bottom: 3px solid transparent;
-            color: var(--text-secondary);
-            font-family: 'JetBrains Mono', monospace;
-            font-size: 0.875rem;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.3s;
-        }
-        
-        .nav-tab:hover { color: var(--text-primary); background: rgba(6, 182, 212, 0.05); }
-        .nav-tab.active { color: var(--text-primary); border-bottom-color: var(--accent-cyan); background: rgba(6, 182, 212, 0.05); }
-        
-        .nav-right {
-            display: flex;
-            align-items: center;
-            gap: 1rem;
-        }
-        
-        .btn {
-            padding: 0.75rem 1.5rem;
-            background: var(--accent-cyan);
-            color: var(--text-primary);
-            border: none;
-            border-radius: 6px;
-            font-size: 0.875rem;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.3s;
-            font-family: 'JetBrains Mono', monospace;
-        }
-        
-        .btn:hover { background: #0891b2; transform: translateY(-2px); }
-        .btn-success { background: var(--accent-green); }
-        .btn-success:hover { background: #059669; }
-        .btn-secondary { background: var(--bg-card); border: 1px solid var(--border-color); }
-        
-        /* Main Container */
-        .container {
-            max-width: 1800px;
-            margin: 0 auto;
-            padding: 2rem;
-        }
-        
-        .tab-content {
-            display: none;
-        }
-        
-        .tab-content.active {
-            display: block;
-        }
-        
-        /* Threshold Configuration Card */
-        .config-card {
-            background: var(--bg-card);
-            border: 1px solid var(--border-color);
-            border-radius: 12px;
-            padding: 1.5rem;
-            margin-bottom: 2rem;
-        }
-        
-        .config-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 1.5rem;
-        }
-        
-        .config-title {
-            font-size: 1.125rem;
-            font-weight: 600;
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-        }
-        
-        .config-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-            gap: 1.5rem;
-        }
-        
-        .config-item {
-            background: var(--bg-secondary);
-            padding: 1rem;
-            border-radius: 8px;
-        }
-        
-        .config-label {
-            font-size: 0.75rem;
-            color: var(--text-muted);
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            margin-bottom: 0.5rem;
-            display: block;
-        }
-        
-        .config-input {
-            width: 100%;
-            padding: 0.75rem;
-            background: var(--bg-card);
-            border: 1px solid var(--border-color);
-            border-radius: 6px;
-            color: var(--text-primary);
-            font-family: 'JetBrains Mono', monospace;
-            font-size: 0.875rem;
-        }
-        
-        .config-input:focus {
-            outline: none;
-            border-color: var(--accent-cyan);
-        }
-        
-        .config-help {
-            font-size: 0.75rem;
-            color: var(--text-muted);
-            margin-top: 0.5rem;
-        }
-        
-        /* Overall Status Card */
-        .overall-status {
-            background: linear-gradient(135deg, var(--bg-card), var(--bg-secondary));
-            border: 2px solid var(--border-color);
-            border-radius: 12px;
-            padding: 2rem;
-            margin-bottom: 2rem;
-            text-align: center;
-        }
-        
-        .overall-status-label {
-            font-size: 0.875rem;
-            color: var(--text-muted);
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            margin-bottom: 1rem;
-        }
-        
-        .overall-status-value {
-            font-size: 3rem;
-            font-weight: 700;
-            margin-bottom: 0.5rem;
-        }
-        
-        .overall-status-value.safe { color: var(--accent-green); }
-        .overall-status-value.unsafe { color: var(--accent-red); animation: pulse-red 1s infinite; }
-        
-        @keyframes pulse-red {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.7; }
-        }
-        
-        .overall-status-info {
-            font-size: 0.875rem;
-            color: var(--text-secondary);
-        }
-        
-        /* Node Grid */
-        .nodes-grid {
-            display: grid;
-            grid-template-columns: repeat(2, 1fr);
-            gap: 1.5rem;
-            margin-bottom: 2rem;
-        }
-        
-        .node-card {
-            background: var(--bg-card);
-            border: 1px solid var(--border-color);
-            border-radius: 12px;
-            padding: 1.5rem;
-        }
-        
-        .node-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 1rem;
-            padding-bottom: 1rem;
-            border-bottom: 1px solid var(--border-color);
-        }
-        
-        .node-title {
-            font-size: 1.125rem;
-            font-weight: 600;
-        }
-        
-        .node-status {
-            padding: 0.25rem 0.75rem;
-            border-radius: 20px;
-            font-size: 0.75rem;
-            font-weight: 600;
-        }
-        
-        .node-status.online {
-            background: rgba(16, 185, 129, 0.1);
-            color: var(--accent-green);
-        }
-        
-        .node-status.offline {
-            background: rgba(239, 68, 68, 0.1);
-            color: var(--accent-red);
-        }
-        
-        .node-stats {
-            display: grid;
-            grid-template-columns: repeat(2, 1fr);
-            gap: 1rem;
-            margin-bottom: 1rem;
-        }
-        
-        .node-stat {
-            text-align: center;
-            padding: 1rem;
-            background: var(--bg-secondary);
-            border-radius: 8px;
-        }
-        
-        .node-stat-label {
-            font-size: 0.75rem;
-            color: var(--text-muted);
-            margin-bottom: 0.5rem;
-        }
-        
-        .node-stat-value {
-            font-size: 1.5rem;
-            font-weight: 700;
-        }
-        
-        .chart-wrapper {
-            height: 250px;
-            margin-bottom: 1rem;
-        }
-        
-        /* History Tab */
-        .history-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 2rem;
-        }
-        
-        .history-title {
-            font-size: 1.5rem;
-            font-weight: 700;
-        }
-        
-        .history-stats {
-            display: flex;
-            gap: 2rem;
-            font-size: 0.875rem;
-            color: var(--text-secondary);
-        }
-        
-        .history-list {
-            max-height: 600px;
-            overflow-y: auto;
-            padding-right: 1rem;
-        }
-        
-        .history-item {
-            background: var(--bg-card);
-            border: 1px solid var(--border-color);
-            border-left: 4px solid var(--accent-red);
-            border-radius: 8px;
-            padding: 1.5rem;
-            margin-bottom: 1rem;
-            transition: all 0.3s;
-        }
-        
-        .history-item:hover {
-            border-left-width: 6px;
-            transform: translateX(4px);
-        }
-        
-        .history-item-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 1rem;
-        }
-        
-        .history-timestamp {
-            font-size: 1rem;
-            font-weight: 600;
-        }
-        
-        .history-badge {
-            padding: 0.25rem 0.75rem;
-            background: rgba(239, 68, 68, 0.1);
-            color: var(--accent-red);
-            border-radius: 20px;
-            font-size: 0.75rem;
-            font-weight: 700;
-        }
-        
-        .history-details {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 1rem;
-            margin-bottom: 1rem;
-        }
-        
-        .history-detail {
-            background: var(--bg-secondary);
-            padding: 0.75rem;
-            border-radius: 6px;
-        }
-        
-        .history-detail-label {
-            font-size: 0.75rem;
-            color: var(--text-muted);
-            margin-bottom: 0.25rem;
-        }
-        
-        .history-detail-value {
-            font-size: 1rem;
-            font-weight: 600;
-        }
-        
-        .history-data-buffer {
-            background: var(--bg-secondary);
-            padding: 1rem;
-            border-radius: 8px;
-            margin-top: 1rem;
-        }
-        
-        .history-data-title {
-            font-size: 0.875rem;
-            color: var(--text-muted);
-            margin-bottom: 0.75rem;
-        }
-        
-        .history-data-grid {
-            display: grid;
-            grid-template-columns: repeat(2, 1fr);
-            gap: 1rem;
-        }
-        
-        .history-data-chart {
-            height: 150px;
-        }
-        
-        /* Scrollbar Styling */
-        .history-list::-webkit-scrollbar {
-            width: 10px;
-        }
-        
-        .history-list::-webkit-scrollbar-track {
-            background: var(--bg-secondary);
-            border-radius: 5px;
-        }
-        
-        .history-list::-webkit-scrollbar-thumb {
-            background: var(--border-color);
-            border-radius: 5px;
-        }
-        
-        .history-list::-webkit-scrollbar-thumb:hover {
-            background: var(--text-muted);
-        }
-        
-        /* Status Bar */
-        .status-bar {
-            position: fixed;
-            bottom: 0;
-            left: 0;
-            right: 0;
-            background: var(--bg-secondary);
-            border-top: 1px solid var(--border-color);
-            padding: 0.75rem 2rem;
-            font-size: 0.75rem;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            z-index: 100;
-        }
-        
-        .status-left {
-            display: flex;
-            gap: 2rem;
-            color: var(--text-muted);
-        }
-        
-        .status-right {
-            display: flex;
-            align-items: center;
-            gap: 1rem;
-        }
-        
-        .online-indicator {
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-            color: var(--accent-green);
-        }
-        
-        .online-dot {
-            width: 8px;
-            height: 8px;
-            border-radius: 50%;
-            background: var(--accent-green);
-            animation: pulse 2s infinite;
-        }
-        
-        @keyframes pulse {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.5; }
-        }
-        
-        /* Time Span Selector */
-        .span-selector {
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-            margin-bottom: 1.25rem;
-            padding: 0.75rem 1rem;
-            background: var(--bg-card);
-            border: 1px solid var(--border-color);
-            border-radius: 10px;
-        }
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ERI — Earthquake Recording Instrument</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+  <!-- mqtt.js replaces Paho 1.0.1 — better WSS support, actively maintained -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/mqtt/4.3.7/mqtt.min.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg-primary:   #0a0e17;
+  --bg-secondary: #111827;
+  --bg-card:      #1a2332;
+  --text-primary: #ffffff;
+  --text-secondary:#9ca3af;
+  --text-muted:   #6b7280;
+  --accent-cyan:  #06b6d4;
+  --accent-green: #10b981;
+  --accent-yellow:#fbbf24;
+  --accent-red:   #ef4444;
+  --accent-purple:#a855f7;
+  --border-color: #2d3748;
+}
 
-        .span-label {
-            font-size: 0.75rem;
-            color: var(--text-muted);
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            margin-right: 0.5rem;
-        }
+*,*::before,*::after { margin:0; padding:0; box-sizing:border-box; }
 
-        .span-btn {
-            padding: 0.4rem 1rem;
-            background: var(--bg-secondary);
-            border: 1px solid var(--border-color);
-            border-radius: 6px;
-            color: var(--text-secondary);
-            font-family: 'JetBrains Mono', monospace;
-            font-size: 0.8rem;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.2s;
-        }
+body {
+  font-family:'JetBrains Mono',monospace;
+  background:var(--bg-primary);
+  color:var(--text-primary);
+  overflow-x:hidden;
+  padding-bottom:52px; /* clear fixed status bar */
+}
 
-        .span-btn:hover { color: var(--text-primary); border-color: var(--accent-cyan); }
-        .span-btn.active { background: var(--accent-cyan); border-color: var(--accent-cyan); color: #fff; }
+/* ── Top Nav ─────────────────────────────────────────────────── */
+.top-nav {
+  background:var(--bg-secondary);
+  border-bottom:1px solid var(--border-color);
+  position:sticky; top:0; z-index:100;
+}
+.nav-container {
+  max-width:1800px; margin:0 auto;
+  display:flex; align-items:center; justify-content:space-between;
+  padding:0 2rem;
+}
+.nav-brand { display:flex; align-items:center; gap:.5rem; padding:1rem 0; }
+.nav-logo {
+  width:24px; height:24px; background:var(--accent-cyan);
+  clip-path:polygon(50% 0%,100% 25%,100% 75%,50% 100%,0% 75%,0% 25%);
+}
+.nav-title { font-size:1rem; font-weight:700; letter-spacing:.5px; }
+.nav-tabs  { display:flex; gap:0; }
+.nav-tab {
+  padding:1.5rem 2rem; background:transparent;
+  border:none; border-bottom:3px solid transparent;
+  color:var(--text-secondary);
+  font-family:'JetBrains Mono',monospace; font-size:.875rem; font-weight:600;
+  cursor:pointer; transition:all .3s;
+}
+.nav-tab:hover { color:var(--text-primary); background:rgba(6,182,212,.05); }
+.nav-tab.active { color:var(--text-primary); border-bottom-color:var(--accent-cyan); background:rgba(6,182,212,.05); }
+.nav-right { display:flex; align-items:center; gap:1rem; }
 
-        .span-info {
-            margin-left: auto;
-            font-size: 0.75rem;
-            color: var(--text-muted);
-        }
+/* ── Buttons ─────────────────────────────────────────────────── */
+.btn {
+  padding:.6rem 1.25rem; background:var(--accent-cyan);
+  color:#fff; border:none; border-radius:6px;
+  font-size:.8rem; font-weight:600; cursor:pointer;
+  transition:all .2s; font-family:'JetBrains Mono',monospace;
+}
+.btn:hover { filter:brightness(1.15); transform:translateY(-1px); }
+.btn:disabled { opacity:.5; cursor:not-allowed; transform:none; }
+.btn-success { background:var(--accent-green); }
+.btn-danger  { background:rgba(239,68,68,.15); border:1px solid rgba(239,68,68,.4); color:var(--accent-red); }
+.btn-danger:hover { background:rgba(239,68,68,.25); }
+.btn-secondary { background:var(--bg-card); border:1px solid var(--border-color); }
+.btn-export {
+  padding:.3rem .8rem;
+  background:rgba(6,182,212,.1); border:1px solid rgba(6,182,212,.35);
+  border-radius:6px; color:var(--accent-cyan);
+  font-family:'JetBrains Mono',monospace; font-size:.72rem; font-weight:600;
+  cursor:pointer; transition:all .2s; white-space:nowrap;
+}
+.btn-export:hover { background:rgba(6,182,212,.2); transform:translateY(-1px); }
+.btn-export-sm { padding:.2rem .6rem; font-size:.68rem; }
 
-        .btn-danger { background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.4); color: var(--accent-red); }
-        .btn-danger:hover { background: rgba(239, 68, 68, 0.25); transform: translateY(-2px); }
+/* ── Sync badge ──────────────────────────────────────────────── */
+.sync-badge {
+  display:flex; align-items:center; gap:.4rem;
+  font-size:.72rem; padding:.3rem .8rem; border-radius:20px;
+  border:1px solid var(--border-color); background:var(--bg-card); color:var(--text-muted);
+}
+.sync-badge.syncing { border-color:var(--accent-yellow); color:var(--accent-yellow); }
+.sync-badge.synced  { border-color:var(--accent-green);  color:var(--accent-green);  }
+.sync-dot { width:7px; height:7px; border-radius:50%; background:currentColor; }
+.sync-dot.pulse { animation:pulse 1.5s infinite; }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+@keyframes pulse-red { 0%,100%{opacity:1} 50%{opacity:.65} }
 
-        .btn-export {
-            padding: 0.35rem 0.85rem;
-            background: rgba(6, 182, 212, 0.1);
-            border: 1px solid rgba(6, 182, 212, 0.35);
-            border-radius: 6px;
-            color: var(--accent-cyan);
-            font-family: 'JetBrains Mono', monospace;
-            font-size: 0.72rem;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.2s;
-            white-space: nowrap;
-        }
-        .btn-export:hover { background: rgba(6, 182, 212, 0.2); transform: translateY(-1px); }
-        .btn-export-sm {
-            padding: 0.25rem 0.65rem;
-            font-size: 0.68rem;
-        }
+/* ── Container ───────────────────────────────────────────────── */
+.container { max-width:1800px; margin:0 auto; padding:2rem; }
+.tab-content { display:none; }
+.tab-content.active { display:block; }
 
-        /* Sync status badge in nav */
-        .sync-badge {
-            display: flex;
-            align-items: center;
-            gap: 0.4rem;
-            font-size: 0.72rem;
-            padding: 0.3rem 0.8rem;
-            border-radius: 20px;
-            border: 1px solid var(--border-color);
-            background: var(--bg-card);
-            color: var(--text-muted);
-        }
-        .sync-badge.syncing { border-color: var(--accent-yellow); color: var(--accent-yellow); }
-        .sync-badge.synced  { border-color: var(--accent-green);  color: var(--accent-green);  }
-        .sync-dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
-        .sync-dot.pulse { animation: pulse 1.5s infinite; }
+/* ── Config card ─────────────────────────────────────────────── */
+.config-card {
+  background:var(--bg-card); border:1px solid var(--border-color);
+  border-radius:12px; padding:1.5rem; margin-bottom:2rem;
+}
+.config-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:1.5rem; }
+.config-title  { font-size:1.1rem; font-weight:600; display:flex; align-items:center; gap:.5rem; }
+.config-grid   { display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:1.5rem; }
+.config-item   { background:var(--bg-secondary); padding:1rem; border-radius:8px; }
+.config-label  { font-size:.75rem; color:var(--text-muted); text-transform:uppercase; letter-spacing:.5px; margin-bottom:.5rem; display:block; }
+.config-input  {
+  width:100%; padding:.7rem;
+  background:var(--bg-card); border:1px solid var(--border-color);
+  border-radius:6px; color:var(--text-primary);
+  font-family:'JetBrains Mono',monospace; font-size:.875rem;
+}
+.config-input:focus { outline:none; border-color:var(--accent-cyan); }
+.config-help   { font-size:.72rem; color:var(--text-muted); margin-top:.5rem; }
 
-        /* Responsive */
-        @media (max-width: 1200px) {
-            .nodes-grid {
-                grid-template-columns: 1fr;
-            }
-        }
-        
-        @media (max-width: 768px) {
-            .nav-tabs {
-                display: none;
-            }
-            
-            .config-grid {
-                grid-template-columns: 1fr;
-            }
-            
-            .container {
-                padding: 1rem;
-            }
-        }
-    </style>
+/* Config apply feedback */
+.config-applied {
+  font-size:.72rem; color:var(--accent-green);
+  display:none; margin-left:1rem; align-items:center; gap:.4rem;
+}
+.config-applied.show { display:flex; }
+
+/* ── Overall status ──────────────────────────────────────────── */
+.overall-status {
+  background:linear-gradient(135deg,var(--bg-card),var(--bg-secondary));
+  border:2px solid var(--border-color);
+  border-radius:12px; padding:2rem; margin-bottom:2rem; text-align:center;
+  transition:border-color .4s;
+}
+.overall-status.unsafe { border-color:var(--accent-red); }
+.overall-status-label  { font-size:.875rem; color:var(--text-muted); text-transform:uppercase; letter-spacing:1px; margin-bottom:1rem; }
+.overall-status-value  { font-size:3rem; font-weight:700; margin-bottom:.5rem; }
+.overall-status-value.safe   { color:var(--accent-green); }
+.overall-status-value.unsafe { color:var(--accent-red); animation:pulse-red 1s infinite; }
+.overall-status-info   { font-size:.875rem; color:var(--text-secondary); }
+
+/* ── Time span selector ──────────────────────────────────────── */
+.span-selector {
+  display:flex; align-items:center; gap:.5rem; flex-wrap:wrap;
+  margin-bottom:1.25rem; padding:.75rem 1rem;
+  background:var(--bg-card); border:1px solid var(--border-color); border-radius:10px;
+}
+.span-label { font-size:.75rem; color:var(--text-muted); text-transform:uppercase; letter-spacing:.5px; margin-right:.5rem; }
+.span-btn {
+  padding:.4rem 1rem;
+  background:var(--bg-secondary); border:1px solid var(--border-color); border-radius:6px;
+  color:var(--text-secondary);
+  font-family:'JetBrains Mono',monospace; font-size:.8rem; font-weight:600;
+  cursor:pointer; transition:all .2s;
+}
+.span-btn:hover  { color:var(--text-primary); border-color:var(--accent-cyan); }
+.span-btn.active { background:var(--accent-cyan); border-color:var(--accent-cyan); color:#fff; }
+.span-info { margin-left:auto; font-size:.72rem; color:var(--text-muted); }
+
+/* ── Node grid ───────────────────────────────────────────────── */
+.nodes-grid { display:grid; grid-template-columns:repeat(2,1fr); gap:1.5rem; margin-bottom:2rem; }
+.node-card  { background:var(--bg-card); border:1px solid var(--border-color); border-radius:12px; padding:1.5rem; }
+.node-header {
+  display:flex; justify-content:space-between; align-items:flex-start;
+  margin-bottom:1rem; padding-bottom:1rem; border-bottom:1px solid var(--border-color);
+}
+.node-title { font-size:1.1rem; font-weight:600; }
+.node-loc   { font-size:.72rem; color:var(--text-muted); margin-top:.25rem; }
+.node-status {
+  padding:.25rem .75rem; border-radius:20px;
+  font-size:.72rem; font-weight:600; white-space:nowrap;
+}
+.node-status.online  { background:rgba(16,185,129,.1); color:var(--accent-green); }
+.node-status.offline { background:rgba(239,68,68,.1);  color:var(--accent-red); }
+
+/* ── Node stats row ──────────────────────────────────────────── */
+.node-stats { display:grid; grid-template-columns:repeat(4,1fr); gap:.75rem; margin-bottom:1rem; }
+.node-stat  { text-align:center; padding:.85rem .5rem; background:var(--bg-secondary); border-radius:8px; }
+.node-stat-label { font-size:.68rem; color:var(--text-muted); margin-bottom:.4rem; }
+.node-stat-value { font-size:1.3rem; font-weight:700; }
+.node-stat-unit  { font-size:.68rem; color:var(--text-muted); }
+
+/* ── Axis row ────────────────────────────────────────────────── */
+.axis-row {
+  display:grid; grid-template-columns:repeat(3,1fr); gap:.5rem;
+  margin-bottom:1rem;
+}
+.axis-cell {
+  background:var(--bg-secondary); border-radius:6px;
+  padding:.5rem .75rem; display:flex; justify-content:space-between; align-items:center;
+}
+.axis-label { font-size:.7rem; color:var(--text-muted); }
+.axis-value { font-size:.85rem; font-weight:600; }
+.axis-value.x { color:var(--accent-cyan); }
+.axis-value.y { color:var(--accent-green); }
+.axis-value.z { color:var(--accent-purple); }
+
+/* ── STA/LTA bar ─────────────────────────────────────────────── */
+.stalta-row { margin-bottom:1rem; }
+.stalta-header { display:flex; justify-content:space-between; font-size:.72rem; color:var(--text-muted); margin-bottom:.3rem; }
+.stalta-track  { height:6px; background:var(--border-color); border-radius:3px; overflow:hidden; }
+.stalta-fill   { height:100%; width:0%; border-radius:3px; transition:width .5s, background .4s; background:var(--accent-green); }
+
+/* ── Chart wrapper ───────────────────────────────────────────── */
+.chart-wrapper { height:220px; margin-bottom:.75rem; position:relative; }
+
+/* ── 2x2 axis chart grid ─────────────────────────────────────── */
+.chart-grid {
+  display:grid; grid-template-columns:1fr 1fr; gap:.75rem;
+  margin-bottom:.75rem;
+}
+.chart-grid .chart-wrapper { height:155px; margin-bottom:0; }
+.chart-axis-label {
+  font-size:.68rem; color:var(--text-muted); text-transform:uppercase;
+  letter-spacing:.5px; margin-bottom:.25rem;
+  display:flex; align-items:center; gap:.4rem;
+}
+.chart-axis-label .dot {
+  width:8px; height:8px; border-radius:50%; display:inline-block;
+}
+
+/* ── History ─────────────────────────────────────────────────── */
+.history-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:2rem; flex-wrap:wrap; gap:1rem; }
+.history-title  { font-size:1.5rem; font-weight:700; }
+.history-stats  { display:flex; gap:2rem; font-size:.875rem; color:var(--text-secondary); }
+.history-list   { max-height:640px; overflow-y:auto; padding-right:.5rem; }
+.history-item {
+  background:var(--bg-card); border:1px solid var(--border-color);
+  border-left:4px solid var(--accent-red); border-radius:8px;
+  padding:1.5rem; margin-bottom:1rem; transition:all .25s;
+}
+.history-item:hover { border-left-width:6px; transform:translateX(3px); }
+.history-item-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem; flex-wrap:wrap; gap:.5rem; }
+.history-timestamp { font-size:1rem; font-weight:600; }
+.history-badge {
+  padding:.25rem .75rem; background:rgba(239,68,68,.1);
+  color:var(--accent-red); border-radius:20px; font-size:.75rem; font-weight:700;
+}
+.history-details {
+  display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr));
+  gap:1rem; margin-bottom:1rem;
+}
+.history-detail { background:var(--bg-secondary); padding:.75rem; border-radius:6px; }
+.history-detail-label { font-size:.72rem; color:var(--text-muted); margin-bottom:.25rem; }
+.history-detail-value { font-size:1rem; font-weight:600; }
+
+/* ── Event chart area (these were missing — caused unstyled rendering) ── */
+.history-data-buffer { background:var(--bg-secondary); padding:1rem; border-radius:8px; margin-top:1rem; }
+.event-chart-header  { display:flex; justify-content:space-between; align-items:center; margin-top:1rem; margin-bottom:.5rem; flex-wrap:wrap; gap:.5rem; }
+.event-chart-title   { font-size:.8rem; color:var(--text-secondary); font-weight:600; }
+.event-window-label  { font-size:.72rem; color:rgba(239,68,68,.8); }
+.event-chart-legend  { display:flex; gap:1rem; font-size:.72rem; color:var(--text-muted); margin-bottom:.5rem; align-items:center; }
+.legend-dot          { display:inline-block; width:10px; height:10px; border-radius:50%; margin-right:4px; vertical-align:middle; }
+.event-chart-container { height:180px; position:relative; }
+.history-data-grid   { display:grid; grid-template-columns:repeat(2,1fr); gap:1rem; font-size:.8rem; color:var(--text-secondary); }
+.history-data-title  { font-size:.875rem; color:var(--text-muted); margin-bottom:.75rem; }
+
+/* ── Scrollbars ──────────────────────────────────────────────── */
+.history-list::-webkit-scrollbar { width:8px; }
+.history-list::-webkit-scrollbar-track { background:var(--bg-secondary); border-radius:4px; }
+.history-list::-webkit-scrollbar-thumb { background:var(--border-color); border-radius:4px; }
+.history-list::-webkit-scrollbar-thumb:hover { background:var(--text-muted); }
+
+/* ── Status bar ──────────────────────────────────────────────── */
+.status-bar {
+  position:fixed; bottom:0; left:0; right:0;
+  background:var(--bg-secondary); border-top:1px solid var(--border-color);
+  padding:.65rem 2rem; font-size:.75rem;
+  display:flex; justify-content:space-between; align-items:center; z-index:100;
+}
+.status-left  { display:flex; gap:2rem; color:var(--text-muted); }
+.status-right { display:flex; align-items:center; gap:1rem; }
+.online-indicator { display:flex; align-items:center; gap:.5rem; color:var(--accent-green); }
+.online-dot { width:8px; height:8px; border-radius:50%; background:var(--accent-green); animation:pulse 2s infinite; }
+
+/* ── Toast notifications ─────────────────────────────────────── */
+#toast-container { position:fixed; top:4.5rem; right:1.5rem; z-index:9999; display:flex; flex-direction:column; gap:.5rem; }
+.toast {
+  display:flex; align-items:center; gap:.75rem;
+  padding:.75rem 1.25rem; border-radius:8px;
+  font-size:.8rem; font-weight:600; min-width:240px; max-width:340px;
+  background:var(--bg-card); border:1px solid var(--border-color);
+  box-shadow:0 4px 16px rgba(0,0,0,.4);
+  animation:slide-in .25s ease;
+}
+.toast.success { border-color:var(--accent-green); color:var(--accent-green); }
+.toast.error   { border-color:var(--accent-red);   color:var(--accent-red); }
+.toast.info    { border-color:var(--accent-cyan);   color:var(--accent-cyan); }
+.toast.warn    { border-color:var(--accent-yellow); color:var(--accent-yellow); }
+@keyframes slide-in { from{opacity:0;transform:translateX(24px)} to{opacity:1;transform:translateX(0)} }
+
+/* ── Responsive ──────────────────────────────────────────────── */
+@media (max-width:1200px) { .nodes-grid { grid-template-columns:1fr; } }
+@media (max-width:900px)  { .node-stats { grid-template-columns:repeat(2,1fr); } }
+@media (max-width:768px)  { .nav-tabs { display:none; } .container { padding:1rem; } .config-grid { grid-template-columns:1fr; } }
+</style>
 </head>
 <body>
-    <!-- Top Navigation -->
-    <nav class="top-nav">
-        <div class="nav-container">
-            <div class="nav-brand">
-                <div class="nav-logo"></div>
-                <span class="nav-title">ERI - Multi-Node Monitoring</span>
-            </div>
-            
-            <div class="nav-tabs">
-                <button class="nav-tab active" onclick="switchTab('monitoring')">📊 Live Monitoring</button>
-                <button class="nav-tab" onclick="switchTab('history')">📜 Unsafe Events History</button>
-            </div>
-            
-            <div class="nav-right">
-                <div class="sync-badge" id="syncBadge">
-                    <div class="sync-dot" id="syncDot"></div>
-                    <span id="syncText">History: Waiting…</span>
-                </div>
-                <button class="btn btn-success" id="connectBtn" onclick="connectMQTT()">🔌 Connect</button>
-            </div>
-        </div>
-    </nav>
-    
-    <!-- Main Container -->
-    <div class="container">
-        <!-- Monitoring Tab -->
-        <div id="monitoringTab" class="tab-content active">
-            <!-- Threshold Configuration -->
-            <div class="config-card">
-                <div class="config-header">
-                    <div class="config-title">
-                        <span>⚙️</span>
-                        <span>Threshold Configuration</span>
-                    </div>
-                    <button class="btn" onclick="applyThreshold()">Apply Threshold</button>
-                </div>
-                <div class="config-grid">
-                    <div class="config-item">
-                        <label class="config-label">Unsafe Threshold (m/s²)</label>
-                        <input type="number" class="config-input" id="thresholdUnsafe" value="11.5" step="0.1" min="9.0" max="20.0">
-                        <p class="config-help">Magnitude above this value triggers UNSAFE status</p>
-                    </div>
-                    <div class="config-item">
-                        <label class="config-label">Structure Name</label>
-                        <input type="text" class="config-input" id="structureName" value="CTU Main Building" placeholder="Building Name">
-                        <p class="config-help">Identify the structure being monitored</p>
-                    </div>
-                    <div class="config-item">
-                        <label class="config-label">Buffer Duration (seconds)</label>
-                        <input type="number" class="config-input" id="bufferDuration" value="5" step="1" min="3" max="10">
-                        <p class="config-help">Record data ±N seconds around unsafe events</p>
-                    </div>
-                </div>
-            </div>
-            
-            <!-- Overall Structure Status -->
-            <div class="overall-status" id="overallStatus">
-                <div class="overall-status-label">OVERALL STRUCTURE STATUS</div>
-                <div class="overall-status-value safe" id="overallStatusValue">SAFE</div>
-                <div class="overall-status-info" id="overallStatusInfo">All nodes operating within safe parameters</div>
-            </div>
-            
-            <!-- Time Span Selector -->
-            <div class="span-selector">
-                <span class="span-label">📅 View</span>
-                <button class="span-btn active" id="span24H" onclick="setTimeSpan('24H')">24H</button>
-                <button class="span-btn" id="span7D"  onclick="setTimeSpan('7D')">7 Days</button>
-                <button class="span-btn" id="span30D" onclick="setTimeSpan('30D')">30 Days</button>
-                <button class="span-btn" id="span1Y"  onclick="setTimeSpan('1Y')">1 Year</button>
-                <span class="span-info" id="spanInfo">Showing last 24 hours · Live updates</span>
-            </div>
 
-            <!-- Both Nodes Side by Side -->
-            <div class="nodes-grid">
-                <!-- Node 1 - Ground Floor -->
-                <div class="node-card">
-                    <div class="node-header">
-                        <div>
-                            <div class="node-title">🏢 Ground Floor</div>
-                            <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 0.25rem;">CTU Main Building - Ground Level</div>
-                        </div>
-                        <div style="display:flex;align-items:center;gap:0.75rem;">
-                            <button class="btn-export" onclick="exportNodeCSV('node1')" title="Export Ground Floor data as CSV">⬇ Export CSV</button>
-                            <div class="node-status offline" id="node1Status">Offline</div>
-                        </div>
-                    </div>
-                    <div class="node-stats">
-                        <div class="node-stat">
-                            <div class="node-stat-label">Current</div>
-                            <div class="node-stat-value" id="node1Current">0.0</div>
-                            <div style="font-size: 0.75rem; color: var(--text-muted);">m/s²</div>
-                        </div>
-                        <div class="node-stat">
-                            <div class="node-stat-label">Max</div>
-                            <div class="node-stat-value" id="node1Max">0.0</div>
-                            <div style="font-size: 0.75rem; color: var(--text-muted);">m/s²</div>
-                        </div>
-                    </div>
-                    <div class="chart-wrapper">
-                        <canvas id="node1Chart"></canvas>
-                    </div>
-                </div>
-                
-                <!-- Node 2 - Top Floor -->
-                <div class="node-card">
-                    <div class="node-header">
-                        <div>
-                            <div class="node-title">🏗️ Top Floor</div>
-                            <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 0.25rem;">CTU Main Building - Top Level</div>
-                        </div>
-                        <div style="display:flex;align-items:center;gap:0.75rem;">
-                            <button class="btn-export" onclick="exportNodeCSV('node2')" title="Export Top Floor data as CSV">⬇ Export CSV</button>
-                            <div class="node-status offline" id="node2Status">Offline</div>
-                        </div>
-                    </div>
-                    <div class="node-stats">
-                        <div class="node-stat">
-                            <div class="node-stat-label">Current</div>
-                            <div class="node-stat-value" id="node2Current">0.0</div>
-                            <div style="font-size: 0.75rem; color: var(--text-muted);">m/s²</div>
-                        </div>
-                        <div class="node-stat">
-                            <div class="node-stat-label">Max</div>
-                            <div class="node-stat-value" id="node2Max">0.0</div>
-                            <div style="font-size: 0.75rem; color: var(--text-muted);">m/s²</div>
-                        </div>
-                    </div>
-                    <div class="chart-wrapper">
-                        <canvas id="node2Chart"></canvas>
-                    </div>
-                </div>
-            </div>
-        </div>
-        
-        <!-- History Tab -->
-        <div id="historyTab" class="tab-content">
-            <div class="history-header">
-                <div class="history-title">⚠️ Unsafe Events History</div>
-                <div style="display:flex;align-items:center;gap:0.75rem;flex-wrap:wrap;">
-                    <div class="history-stats">
-                        <span>Total Events: <strong id="historyCount">0</strong></span>
-                        <span>Last Event: <strong id="lastEventTime">Never</strong></span>
-                    </div>
-                    <button class="btn-export" onclick="exportAllEventsCSV()" title="Export all unsafe events as CSV">⬇ Export All Events CSV</button>
-                    <button class="btn btn-danger" onclick="clearAllData()" style="padding:0.5rem 1rem;font-size:0.8rem;">🗑 Clear All Data</button>
-                </div>
-            </div>
-            <div class="history-list" id="historyList">
-                <div style="text-align: center; padding: 3rem; color: var(--text-muted);">
-                    <div style="font-size: 3rem; margin-bottom: 1rem;">📊</div>
-                    <div>No unsafe events recorded yet</div>
-                    <div style="font-size: 0.875rem; margin-top: 0.5rem;">Events will appear here when threshold is exceeded</div>
-                </div>
-            </div>
-        </div>
+<!-- ══ Top Nav ══════════════════════════════════════════════════ -->
+<nav class="top-nav">
+  <div class="nav-container">
+    <div class="nav-brand">
+      <div class="nav-logo"></div>
+      <span class="nav-title">ERI — Earthquake Recording Instrument</span>
     </div>
-    
-    <!-- Status Bar -->
-    <div class="status-bar">
-        <div class="status-left">
-            <span id="statusInfo">Waiting for connection...</span>
-        </div>
-        <div class="status-right">
-            <div class="online-indicator">
-                <div class="online-dot"></div>
-                <span id="onlineStatus">Offline</span>
-            </div>
-            <span style="color: var(--text-muted)">Last: <span id="lastUpdate">--:--:--</span></span>
-        </div>
+    <div class="nav-tabs">
+      <button class="nav-tab active" onclick="switchTab('monitoring')">📊 Live Monitoring</button>
+      <button class="nav-tab"        onclick="switchTab('history')">📜 Unsafe Events</button>
     </div>
-    
-    <script>
-        // ============================================================
-        // MQTT CONFIGURATION
-        // ============================================================
-        const MQTT_BROKER   = 'df7f72e09ae84a60aa37e2f4e19c7356.s1.eu.hivemq.cloud';
-        const MQTT_PORT     = 8884;
-        const MQTT_USERNAME = 'ERI-Cluster';
-        const MQTT_PASSWORD = 'Abc12345';
-
-        // ── Persistence topics (all published as RETAINED, QoS 1) ──
-        // When a new device connects, the broker delivers these immediately
-        // before any live data, so every device sees the full history.
-        const TOPIC_PERSIST_RAW    = 'eri/persist/{node}/raw';    // last 24h, 1-per-10-sec max
-        const TOPIC_PERSIST_HOURLY = 'eri/persist/{node}/hourly'; // all-time hourly max
-        const TOPIC_PERSIST_DAILY  = 'eri/persist/{node}/daily';  // all-time daily max
-        const TOPIC_PERSIST_EVENTS = 'eri/persist/events';        // all unsafe events
-
-        // ── Live sensor topics (not retained) ──
-        const TOPIC_LIVE_ACCEL  = 'eri/earthquake/+/acceleration';
-        const TOPIC_LIVE_STATUS = 'eri/earthquake/+/status';
-
-        // How often to push a snapshot back to the broker (ms)
-        const SNAPSHOT_INTERVAL_MS = 30000; // 30 seconds
-
-        let mqttClient      = null;
-        let historyReceived = { node1: false, node2: false, events: false };
-        let snapshotTimer   = null;
-
-        let THRESHOLD_UNSAFE = 11.5;
-        let BUFFER_DURATION  = 5;
-
-        // ============================================================
-        // NODE STATE
-        // ============================================================
-        const nodes = {
-            node1: {
-                id: 'node1', name: 'Ground Floor', online: false,
-                currentMagnitude: 0, maxMagnitude: 0,
-                dataBuffer:  [],  // rolling ~10-min for event capture
-                livePoints:  [],  // [[epochMs, mag]] every raw reading, full 1Hz — real-time chart
-                raw:         {},  // { tenSecBucketMs: maxMag } 1-per-10-sec — persisted snapshot
-                hourly:      {},  // { hourBucketMs: maxMag }
-                daily:       {}   // { dayBucketMs:  maxMag }
-            },
-            node2: {
-                id: 'node2', name: 'Top Floor', online: false,
-                currentMagnitude: 0, maxMagnitude: 0,
-                dataBuffer:  [],
-                livePoints:  [],
-                raw:         {},
-                hourly:      {},
-                daily:       {}
-            }
-        };
-
-        let structureStatus  = 'SAFE';
-        let unsafeEvents     = [];
-        let isRecordingEvent = false;
-        let eventStartTime   = null;
-        let eventEndTimeout  = null;
-        let eventCharts      = {};
-        let currentTimeSpan  = '24H';
-
-        // ============================================================
-        // CHART INITIALIZATION
-        // ============================================================
-        const commonOptions = {
-            responsive: true, maintainAspectRatio: false,
-            plugins: { legend: { display: false } },
-            scales: {
-                x: { ticks: { color: '#9ca3af', maxTicksLimit: 8, font: { size: 10 } }, grid: { color: 'rgba(255,255,255,0.05)' } },
-                y: { ticks: { color: '#9ca3af' }, grid: { color: 'rgba(255,255,255,0.05)' },
-                     title: { display: true, text: 'Magnitude (m/s²)', color: '#9ca3af' } }
-            },
-            animation: false
-        };
-
-        const node1Chart = new Chart(document.getElementById('node1Chart'), {
-            type: 'line',
-            data: { labels: [], datasets: [{ label: 'Ground Floor', data: [],
-                borderColor: '#06b6d4', backgroundColor: '#06b6d433', borderWidth: 2, tension: 0.4, fill: true }] },
-            options: commonOptions
-        });
-        const node2Chart = new Chart(document.getElementById('node2Chart'), {
-            type: 'line',
-            data: { labels: [], datasets: [{ label: 'Top Floor', data: [],
-                borderColor: '#a855f7', backgroundColor: '#a855f733', borderWidth: 2, tension: 0.4, fill: true }] },
-            options: commonOptions
-        });
-
-        // ============================================================
-        // SYNC BADGE HELPERS
-        // ============================================================
-        function setSyncBadge(state, text) {
-            const badge = document.getElementById('syncBadge');
-            const dot   = document.getElementById('syncDot');
-            badge.className = 'sync-badge ' + state;
-            dot.className   = 'sync-dot' + (state === 'syncing' ? ' pulse' : '');
-            document.getElementById('syncText').textContent = text;
-        }
-
-        function checkHistoryLoaded() {
-            if (historyReceived.node1 && historyReceived.node2 && historyReceived.events) {
-                setSyncBadge('synced', 'History: Loaded ✓');
-                updateSpanCharts();
-                updateHistoryUI();
-            }
-        }
-
-        // ============================================================
-        // SNAPSHOT — compress & publish retained to broker
-        // ============================================================
-        function buildSnapshot(nodeId) {
-            const node   = nodes[nodeId];
-            const now    = Date.now();
-            const cut24h = now - 86400000;
-
-            // Build the raw snapshot from livePoints — bucket into 10-second max slots.
-            // This gives ~8640 entries for 24h (well under MQTT message limits),
-            // but restores a graph that looks nearly identical to the live 1Hz view.
-            const tenSecBuckets = {};
-            node.livePoints.forEach(([ts, mag]) => {
-                const k = String(Math.floor(ts / 10000) * 10000);
-                if (tenSecBuckets[k] === undefined || mag > tenSecBuckets[k]) tenSecBuckets[k] = mag;
-            });
-            // Prune stale entries from node.raw too
-            Object.keys(node.raw).forEach(k => { if (Number(k) < cut24h) delete node.raw[k]; });
-            // Merge live buckets into node.raw
-            Object.entries(tenSecBuckets).forEach(([k, v]) => {
-                if (node.raw[k] === undefined || v > node.raw[k]) node.raw[k] = v;
-            });
-
-            const rawEntries = Object.entries(node.raw)
-                .map(([k, v]) => [Number(k), v])
-                .sort((a, b) => a[0] - b[0]);
-
-            return {
-                raw:          rawEntries,   // [[tenSecBucketMs, maxMag], ...]
-                hourly:       node.hourly,
-                daily:        node.daily,
-                maxMagnitude: node.maxMagnitude
-            };
-        }
-
-        function publishSnapshots() {
-            if (!mqttClient || !mqttClient.isConnected()) return;
-
-            for (const nodeId of ['node1', 'node2']) {
-                const payload = JSON.stringify(buildSnapshot(nodeId));
-                const topic   = `eri/persist/${nodeId}/raw`;
-                const msg     = new Paho.MQTT.Message(payload);
-                msg.destinationName = topic;
-                msg.retained        = true;
-                msg.qos             = 1;
-                try { mqttClient.send(msg); } catch (e) { console.warn('[persist] send failed:', e); }
-            }
-
-            // Publish events
-            const evPayload = JSON.stringify(unsafeEvents.map(serializeEvent));
-            const evMsg     = new Paho.MQTT.Message(evPayload);
-            evMsg.destinationName = TOPIC_PERSIST_EVENTS;
-            evMsg.retained        = true;
-            evMsg.qos             = 1;
-            try { mqttClient.send(evMsg); } catch (e) { console.warn('[persist] events send failed:', e); }
-
-            setSyncBadge('synced', 'History: Synced ✓');
-        }
-
-        function scheduleSnapshot() {
-            if (snapshotTimer) return; // already scheduled
-            snapshotTimer = setTimeout(() => {
-                publishSnapshots();
-                snapshotTimer = null;
-            }, SNAPSHOT_INTERVAL_MS);
-        }
-
-        // ============================================================
-        // RESTORE — parse retained snapshot messages from broker
-        // ============================================================
-        function restoreSnapshot(nodeId, payload) {
-            try {
-                const snap = JSON.parse(payload);
-                const node = nodes[nodeId];
-
-                // Merge raw (10-second buckets)
-                if (Array.isArray(snap.raw)) {
-                    snap.raw.forEach(([k, v]) => {
-                        const key = String(k);
-                        if (node.raw[key] === undefined || v > node.raw[key]) node.raw[key] = v;
-                    });
-
-                    // ── Seed livePoints from restored raw so the chart shows full
-                    //    history immediately on page load / refresh ──────────────
-                    // Convert each 10-sec bucket back into a point for livePoints.
-                    // Only add entries that aren't already in livePoints (avoid
-                    // duplicating points that arrived as live data before this
-                    // retained message was processed).
-                    const liveSet = new Set(node.livePoints.map(([ts]) => Math.floor(ts / 10000) * 10000));
-                    snap.raw.forEach(([k, v]) => {
-                        if (!liveSet.has(k)) node.livePoints.push([k, v]);
-                    });
-                    // Sort livePoints chronologically after seeding
-                    node.livePoints.sort((a, b) => a[0] - b[0]);
-                    // Trim anything older than 24h
-                    const cut24h = Date.now() - 86400000;
-                    while (node.livePoints.length > 0 && node.livePoints[0][0] < cut24h) node.livePoints.shift();
-                }
-
-                // Merge hourly
-                if (snap.hourly) {
-                    Object.entries(snap.hourly).forEach(([k, v]) => {
-                        if (node.hourly[k] === undefined || v > node.hourly[k]) node.hourly[k] = v;
-                    });
-                }
-
-                // Merge daily
-                if (snap.daily) {
-                    Object.entries(snap.daily).forEach(([k, v]) => {
-                        if (node.daily[k] === undefined || v > node.daily[k]) node.daily[k] = v;
-                    });
-                }
-
-                // Restore max magnitude
-                if (snap.maxMagnitude && snap.maxMagnitude > node.maxMagnitude) {
-                    node.maxMagnitude = snap.maxMagnitude;
-                    document.getElementById(`${nodeId}Max`).textContent = snap.maxMagnitude.toFixed(2);
-                }
-
-                historyReceived[nodeId] = true;
-                console.log(`[persist] Restored ${nodeId}: ${node.livePoints.length} chart pts, ${Object.keys(node.hourly).length} hourly, ${Object.keys(node.daily).length} daily`);
-            } catch (e) {
-                console.warn('[persist] restore failed:', nodeId, e);
-                historyReceived[nodeId] = true; // don't block on bad data
-            }
-            checkHistoryLoaded();
-        }
-
-        function restoreEvents(payload) {
-            try {
-                const arr = JSON.parse(payload);
-                if (Array.isArray(arr)) {
-                    unsafeEvents = arr.map(hydrateEvent);
-                    unsafeEvents.sort((a, b) => b.timestamp - a.timestamp);
-                }
-            } catch (e) {
-                console.warn('[persist] events restore failed:', e);
-            }
-            historyReceived.events = true;
-            checkHistoryLoaded();
-        }
-
-        function serializeEvent(ev) {
-            return {
-                ...ev,
-                timestamp: ev.timestamp.toISOString(),
-                endTime:   ev.endTime.toISOString(),
-                node1Data: ev.node1Data.map(d => ({ ...d, timestamp: d.timestamp.toISOString() })),
-                node2Data: ev.node2Data.map(d => ({ ...d, timestamp: d.timestamp.toISOString() }))
-            };
-        }
-
-        function hydrateEvent(raw) {
-            return {
-                ...raw,
-                timestamp: new Date(raw.timestamp),
-                endTime:   new Date(raw.endTime),
-                node1Data: (raw.node1Data || []).map(d => ({ ...d, timestamp: new Date(d.timestamp) })),
-                node2Data: (raw.node2Data || []).map(d => ({ ...d, timestamp: new Date(d.timestamp) }))
-            };
-        }
-
-        // ============================================================
-        // TIME SPAN SELECTOR
-        // ============================================================
-        const spanLabels = {
-            '24H':  'Showing last 24 hours · Real-time (1Hz)',
-            '7D':   'Showing last 7 days · Hourly peak',
-            '30D':  'Showing last 30 days · Hourly peak',
-            '1Y':   'Showing last 365 days · Daily peak'
-        };
-
-        function setTimeSpan(span) {
-            currentTimeSpan = span;
-            document.querySelectorAll('.span-btn').forEach(b => b.classList.remove('active'));
-            document.getElementById('span' + span).classList.add('active');
-            document.getElementById('spanInfo').textContent = spanLabels[span];
-            updateSpanCharts();
-        }
-
-        function updateSpanCharts() {
-            for (const nodeId of ['node1', 'node2']) {
-                const { labels, data } = getSpanData(nodeId);
-                const chart = nodeId === 'node1' ? node1Chart : node2Chart;
-                chart.data.labels           = labels;
-                chart.data.datasets[0].data = data;
-                chart.update('none');
-            }
-        }
-
-        function getSpanData(nodeId) {
-            const node = nodes[nodeId];
-            const now  = Date.now();
-
-            if (currentTimeSpan === '24H') {
-                // livePoints is always populated:
-                //  - On fresh session: seeded from the restored MQTT snapshot in restoreSnapshot()
-                //  - During live session: every 1Hz reading is pushed in updateAccelerationData()
-                // Cap display at 500 points for smooth rendering
-                const MAX_DISPLAY = 500;
-                const pts  = node.livePoints;
-                const step = Math.max(1, Math.floor(pts.length / MAX_DISPLAY));
-                const sampled = pts.filter((_, i) => i % step === 0);
-                return {
-                    labels: sampled.map(([k]) => new Date(k).toLocaleTimeString()),
-                    data:   sampled.map(([, v]) => v)
-                };
-            }
-
-            if (currentTimeSpan === '7D') {
-                const cut = now - 7 * 86400000;
-                const pts = Object.entries(node.hourly)
-                    .map(([k, v]) => [Number(k), v])
-                    .filter(([k]) => k >= cut)
-                    .sort((a, b) => a[0] - b[0]);
-                return {
-                    labels: pts.map(([k]) => fmtBucket(k, 'hourly')),
-                    data:   pts.map(([, v]) => v)
-                };
-            }
-
-            if (currentTimeSpan === '30D') {
-                // Group hourly into 4-hour buckets
-                const cut = now - 30 * 86400000;
-                const buckets = {};
-                Object.entries(node.hourly)
-                    .map(([k, v]) => [Number(k), v])
-                    .filter(([k]) => k >= cut)
-                    .forEach(([k, v]) => {
-                        const b = Math.floor(k / 14400000) * 14400000;
-                        if (buckets[b] === undefined || v > buckets[b]) buckets[b] = v;
-                    });
-                const pts = Object.entries(buckets).map(([k, v]) => [Number(k), v]).sort((a, b) => a[0] - b[0]);
-                return {
-                    labels: pts.map(([k]) => fmtBucket(k, 'hourly')),
-                    data:   pts.map(([, v]) => v)
-                };
-            }
-
-            if (currentTimeSpan === '1Y') {
-                const cut = now - 365 * 86400000;
-                const pts = Object.entries(node.daily)
-                    .map(([k, v]) => [Number(k), v])
-                    .filter(([k]) => k >= cut)
-                    .sort((a, b) => a[0] - b[0]);
-                return {
-                    labels: pts.map(([k]) => fmtBucket(k, 'daily')),
-                    data:   pts.map(([, v]) => v)
-                };
-            }
-
-            return { labels: [], data: [] };
-        }
-
-        function fmtBucket(ts, type) {
-            const d  = new Date(ts);
-            const mm = String(d.getMonth() + 1).padStart(2, '0');
-            const dd = String(d.getDate()).padStart(2, '0');
-            const hh = String(d.getHours()).padStart(2, '0');
-            return type === 'daily' ? `${mm}/${dd}` : `${mm}/${dd} ${hh}:00`;
-        }
-
-        // ============================================================
-        // TAB SWITCHING & CONFIG
-        // ============================================================
-        function switchTab(tabName) {
-            document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
-            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-            if (tabName === 'monitoring') {
-                document.querySelector('.nav-tab:nth-child(1)').classList.add('active');
-                document.getElementById('monitoringTab').classList.add('active');
-            } else {
-                document.querySelector('.nav-tab:nth-child(2)').classList.add('active');
-                document.getElementById('historyTab').classList.add('active');
-            }
-        }
-
-        function applyThreshold() {
-            THRESHOLD_UNSAFE = parseFloat(document.getElementById('thresholdUnsafe').value);
-            BUFFER_DURATION  = parseInt(document.getElementById('bufferDuration').value);
-            alert(`✓ Config Applied\n\nUnsafe Threshold: ${THRESHOLD_UNSAFE} m/s²\nBuffer Duration: ±${BUFFER_DURATION}s`);
-        }
-
-        // ============================================================
-        // CLEAR ALL DATA
-        // ============================================================
-        function clearAllData() {
-            if (!confirm('⚠️ Clear ALL recorded data and events?\n\nThis will also clear the persisted history on the MQTT broker. Cannot be undone.')) return;
-
-            unsafeEvents = [];
-            for (const id of ['node1', 'node2']) {
-                nodes[id].raw = {}; nodes[id].hourly = {}; nodes[id].daily = {};
-                nodes[id].livePoints = [];
-                nodes[id].maxMagnitude = 0; nodes[id].dataBuffer = [];
-                document.getElementById(`${id}Max`).textContent = '0.0';
-            }
-            Object.values(eventCharts).forEach(c => c.destroy()); eventCharts = {};
-
-            // Publish empty retained messages to clear broker history
-            if (mqttClient && mqttClient.isConnected()) {
-                ['node1', 'node2'].forEach(nodeId => {
-                    const msg = new Paho.MQTT.Message('{}');
-                    msg.destinationName = `eri/persist/${nodeId}/raw`;
-                    msg.retained = true; msg.qos = 1;
-                    try { mqttClient.send(msg); } catch (e) {}
-                });
-                const evMsg = new Paho.MQTT.Message('[]');
-                evMsg.destinationName = TOPIC_PERSIST_EVENTS;
-                evMsg.retained = true; evMsg.qos = 1;
-                try { mqttClient.send(evMsg); } catch (e) {}
-            }
-
-            updateHistoryUI();
-            updateSpanCharts();
-        }
-
-        // ============================================================
-        // MQTT
-        // ============================================================
-        function connectMQTT() {
-            const clientId = 'ERI_Dashboard_' + Math.random().toString(16).substr(2, 8);
-            mqttClient = new Paho.MQTT.Client(MQTT_BROKER, MQTT_PORT, '/mqtt', clientId);
-            mqttClient.onConnectionLost = onConnectionLost;
-            mqttClient.onMessageArrived = onMessageArrived;
-            mqttClient.connect({
-                userName: MQTT_USERNAME, password: MQTT_PASSWORD,
-                onSuccess: onConnect, onFailure: onFailure, useSSL: true,
-                cleanSession: true   // always start fresh; history comes via retained msgs
-            });
-            document.getElementById('connectBtn').disabled    = true;
-            document.getElementById('connectBtn').textContent = '⏳ Connecting...';
-            setSyncBadge('syncing', 'History: Loading…');
-        }
-
-        function onConnect() {
-            document.getElementById('connectBtn').textContent = '✓ Connected';
-            document.getElementById('connectBtn').classList.remove('btn-success');
-            document.getElementById('onlineStatus').textContent = 'Online';
-
-            // ── Subscribe to persistence topics FIRST ──────────────────
-            // The broker will deliver retained messages immediately on subscribe,
-            // before any live data. This restores full history on every device.
-            mqttClient.subscribe('eri/persist/#', { qos: 1 });
-
-            // ── Then subscribe to live sensor topics ────────────────────
-            mqttClient.subscribe(TOPIC_LIVE_ACCEL,  { qos: 0 });
-            mqttClient.subscribe(TOPIC_LIVE_STATUS, { qos: 0 });
-
-            document.getElementById('statusInfo').textContent = 'Connected — loading history from broker…';
-
-            // Failsafe: mark history as loaded after 5s even if no retained msgs exist yet
-            setTimeout(() => {
-                if (!historyReceived.node1) { historyReceived.node1 = true; checkHistoryLoaded(); }
-                if (!historyReceived.node2) { historyReceived.node2 = true; checkHistoryLoaded(); }
-                if (!historyReceived.events){ historyReceived.events= true; checkHistoryLoaded(); }
-            }, 5000);
-        }
-
-        function onFailure(error) {
-            console.error('[MQTT] Failed:', error);
-            document.getElementById('connectBtn').disabled    = false;
-            document.getElementById('connectBtn').textContent = '🔌 Reconnect';
-            setSyncBadge('', 'History: Disconnected');
-        }
-
-        function onConnectionLost() {
-            document.getElementById('connectBtn').disabled    = false;
-            document.getElementById('connectBtn').textContent = '🔌 Reconnect';
-            document.getElementById('connectBtn').classList.add('btn-success');
-            document.getElementById('onlineStatus').textContent = 'Disconnected';
-            setSyncBadge('', 'History: Disconnected');
-        }
-
-        function onMessageArrived(message) {
-            const topic   = message.destinationName;
-            const payload = message.payloadString;
-
-            // ── Persistence / history topics ────────────────────────────
-            if (topic.startsWith('eri/persist/')) {
-                if (topic === 'eri/persist/node1/raw') { restoreSnapshot('node1', payload); return; }
-                if (topic === 'eri/persist/node2/raw') { restoreSnapshot('node2', payload); return; }
-                if (topic === TOPIC_PERSIST_EVENTS)    { restoreEvents(payload); return; }
-                return; // ignore other persist sub-topics
-            }
-
-            // ── Live sensor topics ───────────────────────────────────────
-            const parts  = topic.split('/');
-            const nodeId = parts[2];
-            const type   = parts[3];
-            if (!nodes[nodeId]) return;
-
-            if (type === 'acceleration') {
-                updateAccelerationData(nodeId, JSON.parse(payload));
-            } else if (type === 'status') {
-                const p = JSON.parse(payload);
-                if (p.status === 'online') {
-                    nodes[nodeId].online = true;
-                    const el = document.getElementById(`${nodeId}Status`);
-                    el.textContent = 'Online'; el.classList.remove('offline'); el.classList.add('online');
-                }
-            }
-
-            document.getElementById('lastUpdate').textContent = new Date().toLocaleTimeString();
-        }
-
-        // ============================================================
-        // LIVE DATA UPDATE
-        // ============================================================
-        function updateAccelerationData(nodeId, data) {
-            const node    = nodes[nodeId];
-            const { x, y, z, magnitude } = data;
-            const now     = new Date();
-            const epochMs = now.getTime();
-
-            node.currentMagnitude = magnitude;
-            if (magnitude > node.maxMagnitude) {
-                node.maxMagnitude = magnitude;
-                document.getElementById(`${nodeId}Max`).textContent = magnitude.toFixed(2);
-            }
-
-            // Rolling dataBuffer for event capture
-            node.dataBuffer.push({ timestamp: now, magnitude, x, y, z });
-            if (node.dataBuffer.length > 600) node.dataBuffer.shift();
-
-            // ── livePoints: every raw reading at full 1Hz, kept for last 24h ──
-            node.livePoints.push([epochMs, magnitude]);
-            // Trim points older than 24h
-            const cut24h = epochMs - 86400000;
-            while (node.livePoints.length > 0 && node.livePoints[0][0] < cut24h) node.livePoints.shift();
-
-            // ── Aggregation buckets for persistence & longer spans ───────────
-            // 10-second bucket for persisted raw snapshot (gives much better graph
-            // resolution after page refresh vs the old 1-minute bucket)
-            const tenSecKey = String(Math.floor(epochMs / 10000) * 10000);
-            if (node.raw[tenSecKey] === undefined || magnitude > node.raw[tenSecKey]) node.raw[tenSecKey] = magnitude;
-
-            // Hourly bucket (7D / 30D view)
-            const hourKey = String(Math.floor(epochMs / 3600000) * 3600000);
-            if (node.hourly[hourKey] === undefined || magnitude > node.hourly[hourKey]) node.hourly[hourKey] = magnitude;
-
-            // Daily bucket (1Y view)
-            const d       = new Date(epochMs);
-            const dayKey  = String(new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime());
-            if (node.daily[dayKey] === undefined || magnitude > node.daily[dayKey]) node.daily[dayKey] = magnitude;
-
-            // Update displays
-            document.getElementById(`${nodeId}Current`).textContent = magnitude.toFixed(2);
-
-            // Redraw chart in real-time for 24H; others on demand
-            if (currentTimeSpan === '24H') updateSpanCharts();
-
-            // Schedule snapshot publish (debounced to every 30s)
-            scheduleSnapshot();
-
-            checkStructureStatus();
-        }
-
-        // ============================================================
-        // THRESHOLD & EVENT DETECTION
-        // ============================================================
-        function checkStructureStatus() {
-            const maxMag   = Math.max(nodes.node1.currentMagnitude, nodes.node2.currentMagnitude);
-            const statusEl = document.getElementById('overallStatusValue');
-            const infoEl   = document.getElementById('overallStatusInfo');
-
-            if (maxMag >= THRESHOLD_UNSAFE) {
-                if (eventEndTimeout) { clearTimeout(eventEndTimeout); eventEndTimeout = null; }
-                if (structureStatus === 'SAFE') { structureStatus = 'UNSAFE'; startUnsafeEvent(); }
-                statusEl.textContent = 'UNSAFE';
-                statusEl.className   = 'overall-status-value unsafe';
-                infoEl.textContent   = `⚠️ Threshold exceeded! Max: ${maxMag.toFixed(2)} m/s² (Threshold: ${THRESHOLD_UNSAFE} m/s²)`;
-                document.getElementById('statusInfo').textContent = '⚠️ UNSAFE CONDITION — Recording event data...';
-            } else {
-                if (structureStatus === 'UNSAFE' && !eventEndTimeout) {
-                    const endTime = new Date();
-                    eventEndTimeout = setTimeout(() => {
-                        endUnsafeEvent(endTime);
-                        eventEndTimeout = null;
-                    }, BUFFER_DURATION * 1000);
-                }
-                structureStatus      = 'SAFE';
-                statusEl.textContent = 'SAFE';
-                statusEl.className   = 'overall-status-value safe';
-                infoEl.textContent   = `All nodes within safe parameters (Max: ${maxMag.toFixed(2)} m/s²)`;
-                document.getElementById('statusInfo').textContent = `Monitoring | Threshold: ${THRESHOLD_UNSAFE} m/s²`;
-            }
-        }
-
-        function startUnsafeEvent() {
-            isRecordingEvent = true;
-            eventStartTime   = new Date();
-        }
-
-        function endUnsafeEvent(endTime) {
-            if (!isRecordingEvent) return;
-            isRecordingEvent = false;
-
-            const bufMs        = BUFFER_DURATION * 1000;
-            const captureStart = new Date(eventStartTime.getTime() - bufMs);
-            const captureEnd   = new Date(endTime.getTime() + bufMs);
-
-            const node1Data = nodes.node1.dataBuffer.filter(d => d.timestamp >= captureStart && d.timestamp <= captureEnd);
-            const node2Data = nodes.node2.dataBuffer.filter(d => d.timestamp >= captureStart && d.timestamp <= captureEnd);
-
-            const event = {
-                id:             unsafeEvents.length + 1,
-                timestamp:      eventStartTime,
-                endTime,
-                duration:       (endTime - eventStartTime) / 1000,
-                maxMagnitude:   Math.max(nodes.node1.maxMagnitude, nodes.node2.maxMagnitude),
-                node1Data,
-                node2Data,
-                structureName:  document.getElementById('structureName').value,
-                bufferDuration: BUFFER_DURATION
-            };
-
-            unsafeEvents.unshift(event);
-            updateHistoryUI();
-            publishSnapshots(); // immediate publish on new event
-        }
-
-        // ============================================================
-        // HISTORY UI
-        // ============================================================
-        function updateHistoryUI() {
-            document.getElementById('historyCount').textContent  = unsafeEvents.length;
-            document.getElementById('lastEventTime').textContent = unsafeEvents.length > 0
-                ? unsafeEvents[0].timestamp.toLocaleString() : 'Never';
-
-            const historyList = document.getElementById('historyList');
-            Object.values(eventCharts).forEach(c => c.destroy());
-            eventCharts = {};
-
-            if (unsafeEvents.length === 0) {
-                historyList.innerHTML = `
-                    <div style="text-align:center;padding:3rem;color:var(--text-muted);">
-                        <div style="font-size:3rem;margin-bottom:1rem;">📊</div>
-                        <div>No unsafe events recorded yet</div>
-                        <div style="font-size:0.875rem;margin-top:0.5rem;">Events will appear here when threshold is exceeded</div>
-                    </div>`;
-                return;
-            }
-
-            historyList.innerHTML = '';
-            unsafeEvents.forEach(event => {
-                const n1Min = event.node1Data.length > 0 ? Math.min(...event.node1Data.map(d => d.magnitude)).toFixed(2) : 'N/A';
-                const n1Max = event.node1Data.length > 0 ? Math.max(...event.node1Data.map(d => d.magnitude)).toFixed(2) : 'N/A';
-                const n2Min = event.node2Data.length > 0 ? Math.min(...event.node2Data.map(d => d.magnitude)).toFixed(2) : 'N/A';
-                const n2Max = event.node2Data.length > 0 ? Math.max(...event.node2Data.map(d => d.magnitude)).toFixed(2) : 'N/A';
-                const buf   = event.bufferDuration || BUFFER_DURATION;
-                const cid   = `eventChart_${event.id}`;
-
-                historyList.innerHTML += `
-                    <div class="history-item">
-                        <div class="history-item-header">
-                            <div class="history-timestamp">${event.timestamp.toLocaleString()}</div>
-                            <div style="display:flex;align-items:center;gap:0.6rem;">
-                                <button class="btn-export btn-export-sm" onclick="exportEventCSV(${event.id})" title="Export this event's data as CSV">⬇ CSV</button>
-                                <div class="history-badge">UNSAFE EVENT #${event.id}</div>
-                            </div>
-                        </div>
-                        <div class="history-details">
-                            <div class="history-detail"><div class="history-detail-label">Duration</div><div class="history-detail-value">${event.duration.toFixed(1)}s</div></div>
-                            <div class="history-detail"><div class="history-detail-label">Max Magnitude</div><div class="history-detail-value">${event.maxMagnitude.toFixed(2)} m/s²</div></div>
-                            <div class="history-detail"><div class="history-detail-label">Structure</div><div class="history-detail-value">${event.structureName}</div></div>
-                            <div class="history-detail"><div class="history-detail-label">Data Points</div><div class="history-detail-value">${event.node1Data.length + event.node2Data.length}</div></div>
-                        </div>
-                        <div class="history-data-buffer">
-                            <div class="history-data-title">📊 Recorded Data (±${buf}s buffer)</div>
-                            <div class="history-data-grid">
-                                <div><strong>Ground Floor:</strong> ${event.node1Data.length} samples<br>Range: ${n1Min} – ${n1Max} m/s²</div>
-                                <div><strong>Top Floor:</strong> ${event.node2Data.length} samples<br>Range: ${n2Min} – ${n2Max} m/s²</div>
-                            </div>
-                            <div class="event-chart-header" style="margin-top:1rem;">
-                                <span class="event-chart-title">⏱ Acceleration Timeline (±${buf}s window)</span>
-                                <span class="event-window-label">🔴 Shaded = Unsafe Duration</span>
-                            </div>
-                            <div class="event-chart-legend">
-                                <span><span class="legend-dot" style="background:#06b6d4;"></span>Ground Floor</span>
-                                <span><span class="legend-dot" style="background:#a855f7;"></span>Top Floor</span>
-                                <span><span style="display:inline-block;width:14px;height:2px;background:#ef4444;margin-right:4px;vertical-align:middle;"></span>Threshold</span>
-                            </div>
-                            <div class="event-chart-container"><canvas id="${cid}"></canvas></div>
-                        </div>
-                    </div>`;
-            });
-
-            unsafeEvents.forEach(event => renderEventChart(event));
-        }
-
-        // ============================================================
-        // EVENT DETAIL CHART  (±buffer window with shaded unsafe region)
-        // ============================================================
-        function renderEventChart(event) {
-            const canvas = document.getElementById(`eventChart_${event.id}`);
-            if (!canvas) return;
-            const buf            = event.bufferDuration || BUFFER_DURATION;
-            const captureStartMs = event.timestamp.getTime() - buf * 1000;
-
-            const timeSet = new Set();
-            event.node1Data.forEach(d => timeSet.add(d.timestamp.getTime()));
-            event.node2Data.forEach(d => timeSet.add(d.timestamp.getTime()));
-            const sortedMs = Array.from(timeSet).sort((a, b) => a - b);
-
-            if (sortedMs.length === 0) {
-                const ctx = canvas.getContext('2d');
-                ctx.fillStyle = '#6b7280'; ctx.font = '13px monospace'; ctx.textAlign = 'center';
-                ctx.fillText('No data captured for this event', canvas.width / 2, canvas.height / 2);
-                return;
-            }
-
-            const labels    = sortedMs.map(ms => ((ms - captureStartMs) / 1000).toFixed(1) + 's');
-            const n1Map = {}, n2Map = {};
-            event.node1Data.forEach(d => { n1Map[d.timestamp.getTime()] = d.magnitude; });
-            event.node2Data.forEach(d => { n2Map[d.timestamp.getTime()] = d.magnitude; });
-            const n1Values  = sortedMs.map(ms => n1Map[ms] !== undefined ? n1Map[ms] : null);
-            const n2Values  = sortedMs.map(ms => n2Map[ms] !== undefined ? n2Map[ms] : null);
-            const threshold = sortedMs.map(() => THRESHOLD_UNSAFE);
-
-            const eventStartMs = event.timestamp.getTime();
-            const eventEndMs   = event.endTime.getTime();
-
-            const shadingPlugin = {
-                id: `shading_${event.id}`,
-                beforeDraw(chart) {
-                    const { ctx, chartArea, scales } = chart;
-                    if (!chartArea) return;
-                    const lbs = chart.data.labels;
-                    let x1 = chartArea.left, x2 = chartArea.right, foundStart = false;
-                    for (let i = 0; i < lbs.length; i++) {
-                        const absMs = captureStartMs + parseFloat(lbs[i]) * 1000;
-                        if (!foundStart && absMs >= eventStartMs) { x1 = scales.x.getPixelForValue(i); foundStart = true; }
-                        if (absMs <= eventEndMs) x2 = scales.x.getPixelForValue(i);
-                        if (foundStart && absMs > eventEndMs) break;
-                    }
-                    ctx.save();
-                    ctx.fillStyle = 'rgba(239,68,68,0.13)';
-                    ctx.fillRect(x1, chartArea.top, x2 - x1, chartArea.bottom - chartArea.top);
-                    ctx.strokeStyle = 'rgba(239,68,68,0.5)'; ctx.lineWidth = 1.5; ctx.setLineDash([4, 3]);
-                    [x1, x2].forEach(x => { ctx.beginPath(); ctx.moveTo(x, chartArea.top); ctx.lineTo(x, chartArea.bottom); ctx.stroke(); });
-                    ctx.restore();
-                }
-            };
-
-            eventCharts[event.id] = new Chart(canvas, {
-                type: 'line', plugins: [shadingPlugin],
-                data: {
-                    labels,
-                    datasets: [
-                        { label: 'Ground Floor', data: n1Values, borderColor: '#06b6d4', backgroundColor: 'rgba(6,182,212,0.08)', borderWidth: 2, tension: 0.4, fill: false, pointRadius: 3, spanGaps: true },
-                        { label: 'Top Floor',    data: n2Values, borderColor: '#a855f7', backgroundColor: 'rgba(168,85,247,0.08)', borderWidth: 2, tension: 0.4, fill: false, pointRadius: 3, spanGaps: true },
-                        { label: `Threshold (${THRESHOLD_UNSAFE})`, data: threshold, borderColor: 'rgba(239,68,68,0.7)', borderWidth: 1.5, borderDash: [6, 4], pointRadius: 0, fill: false, tension: 0 }
-                    ]
-                },
-                options: {
-                    responsive: true, maintainAspectRatio: false,
-                    interaction: { mode: 'index', intersect: false },
-                    plugins: {
-                        legend: { display: false },
-                        tooltip: { backgroundColor: '#1a2332', borderColor: '#2d3748', borderWidth: 1,
-                            titleColor: '#9ca3af', bodyColor: '#fff', padding: 10,
-                            callbacks: { label: c => ` ${c.dataset.label}: ${c.parsed.y !== null ? c.parsed.y.toFixed(3)+' m/s²' : 'N/A'}` } }
-                    },
-                    scales: {
-                        x: { ticks: { color: '#6b7280', maxTicksLimit: 12, font: { size: 10 } }, grid: { color: 'rgba(255,255,255,0.04)' },
-                             title: { display: true, text: 'Time from capture start (s)', color: '#6b7280', font: { size: 10 } } },
-                        y: { ticks: { color: '#6b7280', font: { size: 10 } }, grid: { color: 'rgba(255,255,255,0.04)' },
-                             title: { display: true, text: 'Magnitude (m/s²)', color: '#6b7280', font: { size: 10 } } }
-                    },
-                    animation: false
-                }
-            });
-        }
-
-        // ============================================================
-        // CSV EXPORT
-        // ============================================================
-
-        /** Trigger a CSV file download in the browser */
-        function downloadCSV(filename, csvContent) {
-            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-            const url  = URL.createObjectURL(blob);
-            const a    = document.createElement('a');
-            a.href     = url;
-            a.download = filename;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
-        }
-
-        /** Escape a CSV field — wraps in quotes if it contains comma, quote, or newline */
-        function csvField(val) {
-            const s = String(val ?? '');
-            return (s.includes(',') || s.includes('"') || s.includes('\n'))
-                ? '"' + s.replace(/"/g, '""') + '"'
-                : s;
-        }
-
-        /**
-         * Export a node's full livePoints history as CSV.
-         * Columns: Timestamp, Epoch_ms, Magnitude_m_s2
-         */
-        function exportNodeCSV(nodeId) {
-            const node     = nodes[nodeId];
-            const nodeName = node.name;
-            const pts      = node.livePoints;
-
-            if (pts.length === 0) {
-                alert(`No data recorded yet for ${nodeName}.`);
-                return;
-            }
-
-            const rows = [
-                ['ERI - ' + nodeName + ' Acceleration Data'],
-                ['Structure', csvField(document.getElementById('structureName').value)],
-                ['Exported',  csvField(new Date().toLocaleString())],
-                ['Total Points', pts.length],
-                [],
-                ['Timestamp', 'Epoch_ms', 'Magnitude_m_s2']
-            ];
-
-            pts.forEach(([epochMs, mag]) => {
-                rows.push([
-                    csvField(new Date(epochMs).toLocaleString()),
-                    epochMs,
-                    mag.toFixed(4)
-                ]);
-            });
-
-            const csv      = rows.map(r => r.join(',')).join('\r\n');
-            const dateStr  = new Date().toISOString().slice(0, 10);
-            const filename = `ERI_${nodeName.replace(/\s+/g, '_')}_${dateStr}.csv`;
-            downloadCSV(filename, csv);
-        }
-
-        /**
-         * Export a single unsafe event's captured data (both nodes) as CSV.
-         * Columns: Timestamp, Epoch_ms, Node, Magnitude_m_s2, X_m_s2, Y_m_s2, Z_m_s2
-         */
-        function exportEventCSV(eventId) {
-            const event = unsafeEvents.find(e => e.id === eventId);
-            if (!event) return;
-
-            const buf      = event.bufferDuration || BUFFER_DURATION;
-            const allPts   = [
-                ...event.node1Data.map(d => ({ ...d, nodeName: 'Ground Floor' })),
-                ...event.node2Data.map(d => ({ ...d, nodeName: 'Top Floor'    }))
-            ].sort((a, b) => a.timestamp - b.timestamp);
-
-            const rows = [
-                ['ERI - Unsafe Event #' + event.id],
-                ['Structure',     csvField(event.structureName)],
-                ['Event Start',   csvField(event.timestamp.toLocaleString())],
-                ['Event End',     csvField(event.endTime.toLocaleString())],
-                ['Duration_s',    event.duration.toFixed(2)],
-                ['Max_Magnitude', event.maxMagnitude.toFixed(4)],
-                ['Buffer_s',      buf],
-                ['Exported',      csvField(new Date().toLocaleString())],
-                [],
-                ['Timestamp', 'Epoch_ms', 'Node', 'Magnitude_m_s2', 'X_m_s2', 'Y_m_s2', 'Z_m_s2']
-            ];
-
-            allPts.forEach(d => {
-                const epochMs = d.timestamp.getTime();
-                rows.push([
-                    csvField(d.timestamp.toLocaleString()),
-                    epochMs,
-                    csvField(d.nodeName),
-                    d.magnitude.toFixed(4),
-                    (d.x ?? '').toString(),
-                    (d.y ?? '').toString(),
-                    (d.z ?? '').toString()
-                ]);
-            });
-
-            const csv      = rows.map(r => r.join(',')).join('\r\n');
-            const dateStr  = event.timestamp.toISOString().slice(0, 10);
-            const filename = `ERI_Event${event.id}_${dateStr}.csv`;
-            downloadCSV(filename, csv);
-        }
-
-        /**
-         * Export ALL unsafe events as a single CSV summary.
-         * One row per event, plus a second sheet-style block with all raw captured readings.
-         */
-        function exportAllEventsCSV() {
-            if (unsafeEvents.length === 0) {
-                alert('No unsafe events recorded yet.');
-                return;
-            }
-
-            const structure = csvField(document.getElementById('structureName').value);
-            const rows = [
-                ['ERI - All Unsafe Events Summary'],
-                ['Structure', structure],
-                ['Exported',  csvField(new Date().toLocaleString())],
-                ['Total Events', unsafeEvents.length],
-                [],
-                // ── Summary table ──
-                ['Event_ID', 'Start_Timestamp', 'End_Timestamp', 'Duration_s',
-                 'Max_Magnitude_m_s2', 'Buffer_s',
-                 'Ground_Floor_Samples', 'Top_Floor_Samples', 'Structure']
-            ];
-
-            unsafeEvents.forEach(ev => {
-                rows.push([
-                    ev.id,
-                    csvField(ev.timestamp.toLocaleString()),
-                    csvField(ev.endTime.toLocaleString()),
-                    ev.duration.toFixed(2),
-                    ev.maxMagnitude.toFixed(4),
-                    ev.bufferDuration || BUFFER_DURATION,
-                    ev.node1Data.length,
-                    ev.node2Data.length,
-                    csvField(ev.structureName)
-                ]);
-            });
-
-            // ── Detailed readings for every event ──
-            rows.push([]);
-            rows.push(['--- DETAILED EVENT READINGS ---']);
-            rows.push(['Event_ID', 'Timestamp', 'Epoch_ms', 'Node',
-                       'Magnitude_m_s2', 'X_m_s2', 'Y_m_s2', 'Z_m_s2']);
-
-            unsafeEvents.forEach(ev => {
-                const allPts = [
-                    ...ev.node1Data.map(d => ({ ...d, nodeName: 'Ground Floor' })),
-                    ...ev.node2Data.map(d => ({ ...d, nodeName: 'Top Floor'    }))
-                ].sort((a, b) => a.timestamp - b.timestamp);
-
-                allPts.forEach(d => {
-                    rows.push([
-                        ev.id,
-                        csvField(d.timestamp.toLocaleString()),
-                        d.timestamp.getTime(),
-                        csvField(d.nodeName),
-                        d.magnitude.toFixed(4),
-                        (d.x ?? '').toString(),
-                        (d.y ?? '').toString(),
-                        (d.z ?? '').toString()
-                    ]);
-                });
-            });
-
-            const csv      = rows.map(r => r.join(',')).join('\r\n');
-            const dateStr  = new Date().toISOString().slice(0, 10);
-            const filename = `ERI_AllEvents_${dateStr}.csv`;
-            downloadCSV(filename, csv);
-        }
-
-        // ============================================================
-        // INIT
-        // ============================================================
-        window.addEventListener('load', () => {
-            connectMQTT();
-        });
-    </script>
+    <div class="nav-right">
+      <div class="sync-badge" id="syncBadge">
+        <div class="sync-dot" id="syncDot"></div>
+        <span id="syncText">History: Waiting…</span>
+      </div>
+      <button class="btn btn-success" id="connectBtn" onclick="connectMQTT()">🔌 Connect</button>
+    </div>
+  </div>
+</nav>
+
+<!-- ══ Toast container ══════════════════════════════════════════ -->
+<div id="toast-container"></div>
+
+<!-- ══ Main container ═══════════════════════════════════════════ -->
+<div class="container">
+
+  <!-- ── Monitoring tab ──────────────────────────────────────── -->
+  <div id="monitoringTab" class="tab-content active">
+
+    <!-- Threshold config -->
+    <div class="config-card">
+      <div class="config-header">
+        <div class="config-title"><span>⚙️</span><span>Threshold Configuration</span></div>
+        <div style="display:flex;align-items:center">
+          <div class="config-applied" id="configApplied">✓ Applied</div>
+          <button class="btn" onclick="applyThreshold()">Apply</button>
+        </div>
+      </div>
+      <div class="config-grid">
+        <div class="config-item">
+          <label class="config-label">Unsafe Threshold (m/s²)</label>
+          <input type="number" class="config-input" id="thresholdUnsafe" value="11.5" step="0.1" min="9.0" max="30.0">
+          <p class="config-help">Magnitude above this triggers UNSAFE status</p>
+        </div>
+        <div class="config-item">
+          <label class="config-label">STA/LTA Alert Ratio</label>
+          <input type="number" class="config-input" id="thresholdSTALTA" value="3.0" step="0.1" min="1.0" max="10.0">
+          <p class="config-help">Ratio above this highlights the STA/LTA bar in red</p>
+        </div>
+        <div class="config-item">
+          <label class="config-label">Structure Name</label>
+          <input type="text" class="config-input" id="structureName" value="CTU Main Building" placeholder="Building name">
+          <p class="config-help">Identifies the monitored structure in exports</p>
+        </div>
+        <div class="config-item">
+          <label class="config-label">Buffer Duration (seconds)</label>
+          <input type="number" class="config-input" id="bufferDuration" value="5" step="1" min="3" max="30">
+          <p class="config-help">Record data ±N seconds around unsafe events</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Overall status -->
+    <div class="overall-status" id="overallStatusCard">
+      <div class="overall-status-label">OVERALL STRUCTURE STATUS</div>
+      <div class="overall-status-value safe" id="overallStatusValue">SAFE</div>
+      <div class="overall-status-info" id="overallStatusInfo">All nodes within safe parameters</div>
+    </div>
+
+    <!-- Time span -->
+    <div class="span-selector">
+      <span class="span-label">📅 View</span>
+      <button class="span-btn active" id="span24H" onclick="setTimeSpan('24H')">24H</button>
+      <button class="span-btn" id="span7D"  onclick="setTimeSpan('7D')">7 Days</button>
+      <button class="span-btn" id="span30D" onclick="setTimeSpan('30D')">30 Days</button>
+      <button class="span-btn" id="span1Y"  onclick="setTimeSpan('1Y')">1 Year</button>
+      <span class="span-info" id="spanInfo">Showing last 24 hours · Real-time (1 Hz)</span>
+    </div>
+
+    <!-- Node cards -->
+    <div class="nodes-grid">
+
+      <!-- Node 1 — Ground Floor -->
+      <div class="node-card">
+        <div class="node-header">
+          <div>
+            <div class="node-title">🏢 Ground Floor</div>
+            <div class="node-loc">CTU Main Building — Ground Level</div>
+          </div>
+          <div style="display:flex;align-items:center;gap:.75rem">
+            <button class="btn-export" onclick="exportNodeCSV('node1')">⬇ Export CSV</button>
+            <div class="node-status offline" id="node1Status">Offline</div>
+          </div>
+        </div>
+        <!-- Stats -->
+        <div class="node-stats">
+          <div class="node-stat">
+            <div class="node-stat-label">Current</div>
+            <div class="node-stat-value" id="node1Current">—</div>
+            <div class="node-stat-unit">m/s²</div>
+          </div>
+          <div class="node-stat">
+            <div class="node-stat-label">Session Max</div>
+            <div class="node-stat-value" id="node1Max">—</div>
+            <div class="node-stat-unit">m/s²</div>
+          </div>
+          <div class="node-stat">
+            <div class="node-stat-label">STA/LTA</div>
+            <div class="node-stat-value" id="node1Ratio">—</div>
+            <div class="node-stat-unit">ratio</div>
+          </div>
+          <div class="node-stat">
+            <div class="node-stat-label">LTA Ready</div>
+            <div class="node-stat-value" id="node1LTA">—</div>
+            <div class="node-stat-unit">status</div>
+          </div>
+        </div>
+        <!-- X/Y/Z axes -->
+        <div class="axis-row">
+          <div class="axis-cell"><span class="axis-label">X</span><span class="axis-value x" id="node1X">—</span></div>
+          <div class="axis-cell"><span class="axis-label">Y</span><span class="axis-value y" id="node1Y">—</span></div>
+          <div class="axis-cell"><span class="axis-label">Z</span><span class="axis-value z" id="node1Z">—</span></div>
+        </div>
+        <!-- STA/LTA bar -->
+        <div class="stalta-row">
+          <div class="stalta-header">
+            <span>STA/LTA Ratio</span>
+            <span id="node1STALTAText">— / threshold 3.0</span>
+          </div>
+          <div class="stalta-track"><div class="stalta-fill" id="node1STALTABar"></div></div>
+        </div>
+        <!-- 2×2 axis charts -->
+        <div class="chart-grid">
+          <div>
+            <div class="chart-axis-label"><span class="dot" style="background:#06b6d4"></span>X-axis</div>
+            <div class="chart-wrapper"><canvas id="node1ChartX"></canvas></div>
+          </div>
+          <div>
+            <div class="chart-axis-label"><span class="dot" style="background:#10b981"></span>Y-axis</div>
+            <div class="chart-wrapper"><canvas id="node1ChartY"></canvas></div>
+          </div>
+          <div>
+            <div class="chart-axis-label"><span class="dot" style="background:#a855f7"></span>Z-axis (gravity corrected)</div>
+            <div class="chart-wrapper"><canvas id="node1ChartZ"></canvas></div>
+          </div>
+          <div>
+            <div class="chart-axis-label"><span class="dot" style="background:#fbbf24"></span>Magnitude</div>
+            <div class="chart-wrapper"><canvas id="node1Chart"></canvas></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Node 2 — Top Floor -->
+      <div class="node-card">
+        <div class="node-header">
+          <div>
+            <div class="node-title">🏗️ Top Floor</div>
+            <div class="node-loc">CTU Main Building — Top Level</div>
+          </div>
+          <div style="display:flex;align-items:center;gap:.75rem">
+            <button class="btn-export" onclick="exportNodeCSV('node2')">⬇ Export CSV</button>
+            <div class="node-status offline" id="node2Status">Offline</div>
+          </div>
+        </div>
+        <div class="node-stats">
+          <div class="node-stat">
+            <div class="node-stat-label">Current</div>
+            <div class="node-stat-value" id="node2Current">—</div>
+            <div class="node-stat-unit">m/s²</div>
+          </div>
+          <div class="node-stat">
+            <div class="node-stat-label">Session Max</div>
+            <div class="node-stat-value" id="node2Max">—</div>
+            <div class="node-stat-unit">m/s²</div>
+          </div>
+          <div class="node-stat">
+            <div class="node-stat-label">STA/LTA</div>
+            <div class="node-stat-value" id="node2Ratio">—</div>
+            <div class="node-stat-unit">ratio</div>
+          </div>
+          <div class="node-stat">
+            <div class="node-stat-label">LTA Ready</div>
+            <div class="node-stat-value" id="node2LTA">—</div>
+            <div class="node-stat-unit">status</div>
+          </div>
+        </div>
+        <div class="axis-row">
+          <div class="axis-cell"><span class="axis-label">X</span><span class="axis-value x" id="node2X">—</span></div>
+          <div class="axis-cell"><span class="axis-label">Y</span><span class="axis-value y" id="node2Y">—</span></div>
+          <div class="axis-cell"><span class="axis-label">Z</span><span class="axis-value z" id="node2Z">—</span></div>
+        </div>
+        <div class="stalta-row">
+          <div class="stalta-header">
+            <span>STA/LTA Ratio</span>
+            <span id="node2STALTAText">— / threshold 3.0</span>
+          </div>
+          <div class="stalta-track"><div class="stalta-fill" id="node2STALTABar"></div></div>
+        </div>
+        <!-- 2×2 axis charts -->
+        <div class="chart-grid">
+          <div>
+            <div class="chart-axis-label"><span class="dot" style="background:#06b6d4"></span>X-axis</div>
+            <div class="chart-wrapper"><canvas id="node2ChartX"></canvas></div>
+          </div>
+          <div>
+            <div class="chart-axis-label"><span class="dot" style="background:#10b981"></span>Y-axis</div>
+            <div class="chart-wrapper"><canvas id="node2ChartY"></canvas></div>
+          </div>
+          <div>
+            <div class="chart-axis-label"><span class="dot" style="background:#a855f7"></span>Z-axis (gravity corrected)</div>
+            <div class="chart-wrapper"><canvas id="node2ChartZ"></canvas></div>
+          </div>
+          <div>
+            <div class="chart-axis-label"><span class="dot" style="background:#fbbf24"></span>Magnitude</div>
+            <div class="chart-wrapper"><canvas id="node2Chart"></canvas></div>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /.nodes-grid -->
+  </div><!-- /#monitoringTab -->
+
+  <!-- ── History tab ─────────────────────────────────────────── -->
+  <div id="historyTab" class="tab-content">
+    <div class="history-header">
+      <div class="history-title">⚠️ Unsafe Events History</div>
+      <div style="display:flex;align-items:center;gap:.75rem;flex-wrap:wrap">
+        <div class="history-stats">
+          <span>Total: <strong id="historyCount">0</strong></span>
+          <span>Last: <strong id="lastEventTime">Never</strong></span>
+        </div>
+        <button class="btn-export" onclick="exportAllEventsCSV()">⬇ Export All Events</button>
+        <button class="btn btn-danger" onclick="clearAllData()" style="padding:.5rem 1rem;font-size:.8rem">🗑 Clear All</button>
+      </div>
+    </div>
+    <div class="history-list" id="historyList">
+      <div style="text-align:center;padding:3rem;color:var(--text-muted)">
+        <div style="font-size:3rem;margin-bottom:1rem">📊</div>
+        <div>No unsafe events recorded yet</div>
+        <div style="font-size:.875rem;margin-top:.5rem">Events appear here when the threshold is exceeded</div>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /.container -->
+
+<!-- ══ Status bar ═══════════════════════════════════════════════ -->
+<div class="status-bar">
+  <div class="status-left">
+    <span id="statusInfo">Waiting for connection…</span>
+  </div>
+  <div class="status-right">
+    <div class="online-indicator" id="onlineIndicator" style="display:none">
+      <div class="online-dot"></div>
+      <span id="onlineStatus">Online</span>
+    </div>
+    <span style="color:var(--text-muted)">Last: <span id="lastUpdate">——</span></span>
+  </div>
+</div>
+
+<script>
+'use strict';
+
+// ══════════════════════════════════════════════════════════════
+//  MQTT CONFIGURATION
+// ══════════════════════════════════════════════════════════════
+const MQTT_BROKER   = 'df7f72e09ae84a60aa37e2f4e19c7356.s1.eu.hivemq.cloud';
+const MQTT_PORT     = 8884;
+const MQTT_USERNAME = 'ERI-Cluster';
+const MQTT_PASSWORD = 'Abc12345';
+
+// Live sensor topics (from improved firmware)
+const TOPIC_ACCEL  = 'eri/earthquake/+/acceleration';
+const TOPIC_STALTA = 'eri/earthquake/+/stalta';
+const TOPIC_STATUS = 'eri/earthquake/+/status';
+
+// Persistence topics (retained, QoS 1)
+const TOPIC_PERSIST_EVENTS = 'eri/persist/events';
+
+// ══════════════════════════════════════════════════════════════
+//  TOAST SYSTEM  — replaces all alert() calls
+// ══════════════════════════════════════════════════════════════
+function toast(msg, type = 'info', duration = 3000) {
+  const ct = document.getElementById('toast-container');
+  const el = document.createElement('div');
+  el.className = `toast ${type}`;
+  el.textContent = msg;
+  ct.appendChild(el);
+  setTimeout(() => { el.style.opacity = '0'; el.style.transition = 'opacity .3s'; setTimeout(() => el.remove(), 300); }, duration);
+}
+
+// ══════════════════════════════════════════════════════════════
+//  STATE
+// ══════════════════════════════════════════════════════════════
+let mqttClient     = null;
+let reconnectTimer = null;
+let reconnectDelay = 2000;    // exponential backoff
+let historyReceived = { events: false };
+let snapshotTimer   = null;
+
+let THRESHOLD_UNSAFE = 11.5;
+let THRESHOLD_STALTA = 3.0;
+let BUFFER_DURATION  = 5;
+let currentTimeSpan  = '24H';
+
+const nodes = {
+  node1: {
+    id:'node1', name:'Ground Floor', online:false,
+    currentMagnitude:0, maxMagnitude:0, staLtaRatio:0,
+    x:0, y:0, z:0,
+    dataBuffer:[], livePoints:[],
+    raw:{}, hourly:{}, daily:{}
+  },
+  node2: {
+    id:'node2', name:'Top Floor', online:false,
+    currentMagnitude:0, maxMagnitude:0, staLtaRatio:0,
+    x:0, y:0, z:0,
+    dataBuffer:[], livePoints:[],
+    raw:{}, hourly:{}, daily:{}
+  }
+};
+
+let structureStatus  = 'SAFE';
+let unsafeEvents     = [];
+let isRecordingEvent = false;
+let eventStartTime   = null;
+let eventEndTimeout  = null;
+let eventCharts      = {};
+
+// ══════════════════════════════════════════════════════════════
+//  CHARTS
+// ══════════════════════════════════════════════════════════════
+// Empty-state plugin — shows "Waiting for data…" on blank charts
+Chart.register({
+  id: 'emptyState',
+  afterDraw(chart) {
+    if (chart.data.labels && chart.data.labels.length > 0) return;
+    const { ctx, width: w, height: h } = chart;
+    ctx.save();
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillStyle = '#475569'; ctx.font = '11px JetBrains Mono, monospace';
+    ctx.fillText('Waiting for data…', w / 2, h / 2);
+    ctx.restore();
+  }
+});
+
+const commonOpts = {
+  responsive:true, maintainAspectRatio:false, animation:false,
+  spanGaps:true,
+  plugins:{ legend:{ display:false },
+    tooltip:{ backgroundColor:'#1a2332', borderColor:'#2d3748', borderWidth:1,
+      titleColor:'#9ca3af', bodyColor:'#fff', padding:10,
+      callbacks:{ label: c => ` ${c.parsed.y !== null ? c.parsed.y.toFixed(3)+' m/s²' : 'N/A'}` } }
+  },
+  scales:{
+    x:{ ticks:{ color:'#6b7280', maxTicksLimit:8, font:{ size:9 } }, grid:{ color:'rgba(255,255,255,.04)' } },
+    y:{ ticks:{ color:'#6b7280', font:{ size:10 } }, grid:{ color:'rgba(255,255,255,.04)' },
+        title:{ display:true, text:'Magnitude (m/s²)', color:'#6b7280', font:{ size:10 } } }
+  }
+};
+
+// Helper: build a single-dataset line chart.
+// yTitle overrides the Y-axis label (defaults to 'Magnitude (m/s²)').
+function mkChart(canvasId, color, fillColor, label, yTitle) {
+  const opts = JSON.parse(JSON.stringify(commonOpts));   // deep copy
+  opts.scales.y.title.text = yTitle || 'Magnitude (m/s²)';
+  return new Chart(document.getElementById(canvasId), {
+    type:'line',
+    data:{ labels:[], datasets:[{ label, data:[],
+      borderColor:color, backgroundColor:fillColor,
+      borderWidth:1.5, tension:.3, fill:true, pointRadius:0, spanGaps:true }] },
+    options: opts
+  });
+}
+
+// All 8 charts created inside rAF — CSS grid must finish before Chart.js
+// measures canvas dimensions, or charts render at 0×0.
+let node1Chart, node1ChartX, node1ChartY, node1ChartZ;
+let node2Chart, node2ChartX, node2ChartY, node2ChartZ;
+
+requestAnimationFrame(() => {
+  // ── Ground floor ──────────────────────────────────────────────
+  node1ChartX = mkChart('node1ChartX','#06b6d4','rgba(6,182,212,.12)',  'Ground X', 'Acceleration (m/s²)');
+  node1ChartY = mkChart('node1ChartY','#10b981','rgba(16,185,129,.12)', 'Ground Y', 'Acceleration (m/s²)');
+  node1ChartZ = mkChart('node1ChartZ','#a855f7','rgba(168,85,247,.12)', 'Ground Z (gravity-corrected)', 'Acceleration (m/s²)');
+  node1Chart  = mkChart('node1Chart', '#fbbf24','rgba(251,191,36,.10)', 'Ground Magnitude');
+
+  // ── Top floor ─────────────────────────────────────────────────
+  node2ChartX = mkChart('node2ChartX','#06b6d4','rgba(6,182,212,.12)',  'Top X', 'Acceleration (m/s²)');
+  node2ChartY = mkChart('node2ChartY','#10b981','rgba(16,185,129,.12)', 'Top Y', 'Acceleration (m/s²)');
+  node2ChartZ = mkChart('node2ChartZ','#a855f7','rgba(168,85,247,.12)', 'Top Z (gravity-corrected)', 'Acceleration (m/s²)');
+  node2Chart  = mkChart('node2Chart', '#fbbf24','rgba(251,191,36,.10)', 'Top Magnitude');
+
+  // Safety resize pass after full first paint
+  setTimeout(() => {
+    [node1Chart,node1ChartX,node1ChartY,node1ChartZ,
+     node2Chart,node2ChartX,node2ChartY,node2ChartZ].forEach(ch => ch.resize());
+  }, 250);
+});
+
+// ══════════════════════════════════════════════════════════════
+//  SYNC BADGE
+// ══════════════════════════════════════════════════════════════
+function setSyncBadge(state, text) {
+  const badge = document.getElementById('syncBadge');
+  const dot   = document.getElementById('syncDot');
+  badge.className = 'sync-badge ' + state;
+  dot.className   = 'sync-dot' + (state === 'syncing' ? ' pulse' : '');
+  document.getElementById('syncText').textContent = text;
+}
+
+// ══════════════════════════════════════════════════════════════
+//  PERSISTENCE — snapshot + restore
+// ══════════════════════════════════════════════════════════════
+function buildSnapshot(nodeId) {
+  const node  = nodes[nodeId];
+  const now   = Date.now();
+  const cut24 = now - 86400000;
+
+  // Bucket live points into 10-second max slots for compact storage
+  const tenSec = {};
+  node.livePoints.forEach(([ts, mag]) => {
+    const k = String(Math.floor(ts / 10000) * 10000);
+    if (tenSec[k] === undefined || mag > tenSec[k]) tenSec[k] = mag;
+  });
+  Object.keys(node.raw).forEach(k => { if (Number(k) < cut24) delete node.raw[k]; });
+  Object.entries(tenSec).forEach(([k, v]) => {
+    if (node.raw[k] === undefined || v > node.raw[k]) node.raw[k] = v;
+  });
+
+  return {
+    raw:          Object.entries(node.raw).map(([k,v]) => [Number(k),v]).sort((a,b)=>a[0]-b[0]),
+    hourly:       node.hourly,
+    daily:        node.daily,
+    maxMagnitude: node.maxMagnitude
+  };
+}
+
+function publishSnapshots() {
+  if (!mqttClient || !mqttClient.connected) return;
+  ['node1','node2'].forEach(nodeId => {
+    const payload = JSON.stringify(buildSnapshot(nodeId));
+    mqttClient.publish(`eri/persist/${nodeId}/raw`, payload, { retain:true, qos:1 });
+  });
+  const evPayload = JSON.stringify(unsafeEvents.map(serializeEvent));
+  mqttClient.publish(TOPIC_PERSIST_EVENTS, evPayload, { retain:true, qos:1 });
+  setSyncBadge('synced', 'History: Synced ✓');
+}
+
+function scheduleSnapshot() {
+  if (snapshotTimer) return;
+  snapshotTimer = setTimeout(() => { publishSnapshots(); snapshotTimer = null; }, 30000);
+}
+
+function restoreSnapshot(nodeId, payload) {
+  try {
+    const snap = JSON.parse(payload);
+    const node = nodes[nodeId];
+    if (Array.isArray(snap.raw)) {
+      snap.raw.forEach(([k,v]) => {
+        const key = String(k);
+        if (node.raw[key] === undefined || v > node.raw[key]) node.raw[key] = v;
+      });
+      const liveSet = new Set(node.livePoints.map(([ts]) => Math.floor(ts/10000)*10000));
+      // Restored points lack per-axis data — push nulls for x/y/z so
+      // livePoints always has a consistent [epochMs, mag, x, y, z] shape.
+      snap.raw.forEach(([k,v]) => { if (!liveSet.has(k)) node.livePoints.push([k,v,null,null,null]); });
+      node.livePoints.sort((a,b) => a[0]-b[0]);
+      const cut = Date.now() - 86400000;
+      while (node.livePoints.length > 0 && node.livePoints[0][0] < cut) node.livePoints.shift();
+    }
+    if (snap.hourly) Object.entries(snap.hourly).forEach(([k,v]) => { if (node.hourly[k]===undefined || v>node.hourly[k]) node.hourly[k]=v; });
+    if (snap.daily)  Object.entries(snap.daily).forEach( ([k,v]) => { if (node.daily[k] ===undefined || v>node.daily[k])  node.daily[k] =v; });
+    if (snap.maxMagnitude && snap.maxMagnitude > node.maxMagnitude) {
+      node.maxMagnitude = snap.maxMagnitude;
+      document.getElementById(`${nodeId}Max`).textContent = snap.maxMagnitude.toFixed(2);
+    }
+  } catch(e) { console.warn('[persist] restore failed:', nodeId, e); }
+}
+
+function restoreEvents(payload) {
+  try {
+    const arr = JSON.parse(payload);
+    if (Array.isArray(arr)) {
+      unsafeEvents = arr.map(hydrateEvent);
+      unsafeEvents.sort((a,b) => b.timestamp - a.timestamp);
+    }
+  } catch(e) { console.warn('[persist] events restore failed:', e); }
+  historyReceived.events = true;
+  updateHistoryUI();
+  // Restore max magnitudes into node objects
+  ['node1','node2'].forEach(nodeId => {
+    restoreSnapshot(nodeId, JSON.stringify({ raw:[], hourly:{}, daily:{}, maxMagnitude:0 }));
+  });
+  updateSpanCharts();
+  setSyncBadge('synced', 'History: Loaded ✓');
+}
+
+function serializeEvent(ev) {
+  return { ...ev,
+    timestamp: ev.timestamp.toISOString(), endTime: ev.endTime.toISOString(),
+    node1Data: ev.node1Data.map(d => ({ ...d, timestamp: d.timestamp.toISOString() })),
+    node2Data: ev.node2Data.map(d => ({ ...d, timestamp: d.timestamp.toISOString() }))
+  };
+}
+function hydrateEvent(raw) {
+  return { ...raw,
+    timestamp: new Date(raw.timestamp), endTime: new Date(raw.endTime),
+    node1Data: (raw.node1Data||[]).map(d => ({ ...d, timestamp: new Date(d.timestamp) })),
+    node2Data: (raw.node2Data||[]).map(d => ({ ...d, timestamp: new Date(d.timestamp) }))
+  };
+}
+
+// ══════════════════════════════════════════════════════════════
+//  TIME SPAN
+// ══════════════════════════════════════════════════════════════
+const spanLabels = {
+  '24H':'Showing last 24 hours · Real-time (1 Hz)',
+  '7D' :'Showing last 7 days · Hourly peak',
+  '30D':'Showing last 30 days · 4-hour peak',
+  '1Y' :'Showing last 365 days · Daily peak'
+};
+
+function setTimeSpan(span) {
+  currentTimeSpan = span;
+  document.querySelectorAll('.span-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('span' + span).classList.add('active');
+  document.getElementById('spanInfo').textContent = spanLabels[span];
+  updateSpanCharts();
+}
+
+function updateSpanCharts() {
+  if (!node1Chart || !node2Chart) return;
+  ['node1','node2'].forEach(nodeId => {
+    const { labels, mag, ax, ay, az } = getSpanData(nodeId);
+    const isN1 = nodeId === 'node1';
+
+    // Magnitude chart
+    const chMag = isN1 ? node1Chart  : node2Chart;
+    chMag.data.labels = labels;
+    chMag.data.datasets[0].data = mag;
+    chMag.update('none');
+
+    // Per-axis charts (24H only — historical spans store magnitude only)
+    const chX = isN1 ? node1ChartX : node2ChartX;
+    const chY = isN1 ? node1ChartY : node2ChartY;
+    const chZ = isN1 ? node1ChartZ : node2ChartZ;
+
+    chX.data.labels = labels; chX.data.datasets[0].data = ax; chX.update('none');
+    chY.data.labels = labels; chY.data.datasets[0].data = ay; chY.update('none');
+    chZ.data.labels = labels; chZ.data.datasets[0].data = az; chZ.update('none');
+  });
+}
+
+function getSpanData(nodeId) {
+  const node = nodes[nodeId];
+  const now  = Date.now();
+  const EMPTY = { labels:[], mag:[], ax:[], ay:[], az:[] };
+
+  if (currentTimeSpan === '24H') {
+    // livePoints: [epochMs, magnitude, x, y, z]
+    // x/y/z may be undefined for points restored from snapshot (those only have mag)
+    const MAX  = 600;
+    const pts  = node.livePoints;
+    const step = Math.max(1, Math.floor(pts.length / MAX));
+    const sam  = pts.filter((_,i) => i % step === 0);
+    return {
+      labels: sam.map(p => new Date(p[0]).toLocaleTimeString()),
+      mag:    sam.map(p => p[1]),
+      ax:     sam.map(p => p[2] ?? null),
+      ay:     sam.map(p => p[3] ?? null),
+      az:     sam.map(p => p[4] ?? null)
+    };
+  }
+
+  // For historical spans (7D / 30D / 1Y), only magnitude is stored in buckets.
+  // Per-axis charts show empty with a placeholder message for these spans.
+  const NO_AXIS = [];   // axis charts left empty for non-24H spans
+
+  if (currentTimeSpan === '7D') {
+    const cut = now - 7*86400000;
+    const pts = Object.entries(node.hourly).map(([k,v])=>[Number(k),v]).filter(([k])=>k>=cut).sort((a,b)=>a[0]-b[0]);
+    return { labels:pts.map(([k])=>fmtBucket(k,'hourly')), mag:pts.map(([,v])=>v), ax:NO_AXIS, ay:NO_AXIS, az:NO_AXIS };
+  }
+  if (currentTimeSpan === '30D') {
+    const cut = now - 30*86400000;
+    const bk  = {};
+    Object.entries(node.hourly).map(([k,v])=>[Number(k),v]).filter(([k])=>k>=cut).forEach(([k,v])=>{
+      const b = Math.floor(k/14400000)*14400000;
+      if (bk[b]===undefined || v>bk[b]) bk[b]=v;
+    });
+    const pts = Object.entries(bk).map(([k,v])=>[Number(k),v]).sort((a,b)=>a[0]-b[0]);
+    return { labels:pts.map(([k])=>fmtBucket(k,'hourly')), mag:pts.map(([,v])=>v), ax:NO_AXIS, ay:NO_AXIS, az:NO_AXIS };
+  }
+  if (currentTimeSpan === '1Y') {
+    const cut = now - 365*86400000;
+    const pts = Object.entries(node.daily).map(([k,v])=>[Number(k),v]).filter(([k])=>k>=cut).sort((a,b)=>a[0]-b[0]);
+    return { labels:pts.map(([k])=>fmtBucket(k,'daily')), mag:pts.map(([,v])=>v), ax:NO_AXIS, ay:NO_AXIS, az:NO_AXIS };
+  }
+  return EMPTY;
+}
+
+function fmtBucket(ts, type) {
+  const d=new Date(ts), mm=String(d.getMonth()+1).padStart(2,'0'), dd=String(d.getDate()).padStart(2,'0'), hh=String(d.getHours()).padStart(2,'0');
+  return type==='daily' ? `${mm}/${dd}` : `${mm}/${dd} ${hh}:00`;
+}
+
+// ══════════════════════════════════════════════════════════════
+//  MQTT — using mqtt.js instead of Paho 1.0.1
+// ══════════════════════════════════════════════════════════════
+function connectMQTT() {
+  if (mqttClient) { try { mqttClient.end(true); } catch(_){} }
+  if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
+
+  const clientId = 'ERI_Dash_' + Math.random().toString(16).slice(2,10);
+  document.getElementById('connectBtn').disabled    = true;
+  document.getElementById('connectBtn').textContent = '⏳ Connecting…';
+  setSyncBadge('syncing', 'History: Loading…');
+
+  mqttClient = mqtt.connect(`wss://${MQTT_BROKER}:${MQTT_PORT}/mqtt`, {
+    clientId, username:MQTT_USERNAME, password:MQTT_PASSWORD,
+    reconnectPeriod:0,    // we handle reconnect manually with backoff
+    connectTimeout:15000,
+    clean:true
+  });
+
+  mqttClient.on('connect', onConnect);
+  mqttClient.on('message', onMessage);
+  mqttClient.on('error',   onError);
+  mqttClient.on('close',   onClose);
+}
+
+function onConnect() {
+  reconnectDelay = 2000;  // reset backoff on success
+  const btn = document.getElementById('connectBtn');
+  btn.disabled    = false;
+  btn.textContent = '✓ Connected';
+  btn.classList.remove('btn-success');
+
+  document.getElementById('onlineIndicator').style.display = 'flex';
+  document.getElementById('onlineStatus').textContent = 'Online';
+  document.getElementById('statusInfo').textContent = 'Connected — loading history…';
+
+  // Subscribe to persistence first so retained history arrives before live data
+  mqttClient.subscribe('eri/persist/#',   { qos:1 });
+  mqttClient.subscribe(TOPIC_ACCEL,       { qos:0 });
+  mqttClient.subscribe(TOPIC_STALTA,      { qos:0 });
+  mqttClient.subscribe(TOPIC_STATUS,      { qos:0 });
+
+  // Failsafe: mark history loaded after 5 s if no retained message arrives
+  setTimeout(() => {
+    if (!historyReceived.events) { historyReceived.events = true; setSyncBadge('synced','History: No data yet'); }
+  }, 5000);
+
+  toast('Connected to HiveMQ Cloud', 'success');
+}
+
+function onMessage(topic, payload) {
+  const payStr = payload.toString();
+
+  // ── Persistence topics ────────────────────────────────────
+  if (topic.startsWith('eri/persist/')) {
+    const parts = topic.split('/');
+    if (parts[2] === 'node1' && parts[3] === 'raw') { restoreSnapshot('node1', payStr); return; }
+    if (parts[2] === 'node2' && parts[3] === 'raw') { restoreSnapshot('node2', payStr); return; }
+    if (topic === TOPIC_PERSIST_EVENTS) { restoreEvents(payStr); return; }
+    return;
+  }
+
+  // ── Live topics ───────────────────────────────────────────
+  const parts  = topic.split('/');
+  const nodeId = parts[2];
+  const type   = parts[3];
+  if (!nodes[nodeId]) return;
+
+  try {
+    const data = JSON.parse(payStr);
+
+    if (type === 'acceleration') {
+      updateAccelData(nodeId, data);
+    } else if (type === 'stalta') {
+      updateSTALTA(nodeId, data);
+    } else if (type === 'status') {
+      const isOnline = data.status === 'online';
+      const el = document.getElementById(`${nodeId}Status`);
+      el.textContent = isOnline ? 'Online' : 'Offline';
+      el.className   = 'node-status ' + (isOnline ? 'online' : 'offline');
+      nodes[nodeId].online = isOnline;
+    }
+  } catch(e) { /* ignore malformed JSON */ }
+
+  document.getElementById('lastUpdate').textContent = new Date().toLocaleTimeString();
+}
+
+function onError(err) {
+  console.error('[MQTT] Error:', err);
+  toast('MQTT error: ' + (err.message || err), 'error', 5000);
+}
+
+function onClose() {
+  const btn = document.getElementById('connectBtn');
+  btn.disabled    = false;
+  btn.textContent = '🔌 Reconnect';
+  btn.classList.add('btn-success');
+  document.getElementById('onlineIndicator').style.display = 'none';
+  setSyncBadge('', 'History: Disconnected');
+
+  // Mark all nodes offline (LWT handling)
+  ['node1','node2'].forEach(id => {
+    const el = document.getElementById(`${id}Status`);
+    el.textContent = 'Offline'; el.className = 'node-status offline';
+    nodes[id].online = false;
+  });
+
+  // Auto-reconnect with exponential backoff (cap at 30 s)
+  reconnectDelay = Math.min(reconnectDelay * 1.5, 30000);
+  document.getElementById('statusInfo').textContent = `Disconnected — reconnecting in ${Math.round(reconnectDelay/1000)}s…`;
+  reconnectTimer = setTimeout(connectMQTT, reconnectDelay);
+}
+
+// ══════════════════════════════════════════════════════════════
+//  LIVE DATA UPDATE
+// ══════════════════════════════════════════════════════════════
+function updateAccelData(nodeId, data) {
+  const node = nodes[nodeId];
+  const mag  = parseFloat(data.magnitude) || 0;
+  // Use unix_ms from firmware if available, otherwise Date.now()
+  const epochMs = data.unix_ms && data.unix_ms > 946684800000 ? data.unix_ms : Date.now();
+  const ts      = new Date(epochMs);
+
+  node.currentMagnitude = mag;
+  node.x = data.x || 0;
+  node.y = data.y || 0;
+  node.z = data.z || 0;
+
+  if (mag > node.maxMagnitude) {
+    node.maxMagnitude = mag;
+    document.getElementById(`${nodeId}Max`).textContent = mag.toFixed(2);
+  }
+
+  // Update stat displays
+  document.getElementById(`${nodeId}Current`).textContent = mag.toFixed(3);
+  document.getElementById(`${nodeId}X`).textContent = node.x.toFixed(3) + ' m/s²';
+  document.getElementById(`${nodeId}Y`).textContent = node.y.toFixed(3) + ' m/s²';
+  document.getElementById(`${nodeId}Z`).textContent = node.z.toFixed(3) + ' m/s²';
+
+  // Rolling buffer for event capture (last 10 min at 1 Hz)
+  node.dataBuffer.push({ timestamp:ts, magnitude:mag, x:node.x, y:node.y, z:node.z });
+  if (node.dataBuffer.length > 600) node.dataBuffer.shift();
+
+  // livePoints for chart (full 24H)
+  node.livePoints.push([epochMs, mag, node.x, node.y, node.z]);
+  const cut24 = epochMs - 86400000;
+  while (node.livePoints.length > 0 && node.livePoints[0][0] < cut24) node.livePoints.shift();
+
+  // Aggregation buckets
+  const tenSecKey = String(Math.floor(epochMs/10000)*10000);
+  if (node.raw[tenSecKey]===undefined || mag>node.raw[tenSecKey]) node.raw[tenSecKey]=mag;
+  const hourKey = String(Math.floor(epochMs/3600000)*3600000);
+  if (node.hourly[hourKey]===undefined || mag>node.hourly[hourKey]) node.hourly[hourKey]=mag;
+  const d = new Date(epochMs);
+  const dayKey = String(new Date(d.getFullYear(),d.getMonth(),d.getDate()).getTime());
+  if (node.daily[dayKey]===undefined || mag>node.daily[dayKey]) node.daily[dayKey]=mag;
+
+  if (currentTimeSpan === '24H') updateSpanCharts();
+  scheduleSnapshot();
+  checkStructureStatus();
+}
+
+function updateSTALTA(nodeId, data) {
+  const node  = nodes[nodeId];
+  const ratio = parseFloat(data.ratio) || 0;
+  const ready = !!data.ltaReady;
+  node.staLtaRatio = ratio;
+
+  document.getElementById(`${nodeId}Ratio`).textContent = ratio.toFixed(2);
+  document.getElementById(`${nodeId}LTA`).textContent   = ready ? 'Ready' : 'Filling';
+  document.getElementById(`${nodeId}STALTAText`).textContent =
+    `${ratio.toFixed(2)} / threshold ${THRESHOLD_STALTA.toFixed(1)}`;
+
+  // STA/LTA bar — cap visual at 2× threshold
+  const pct  = Math.min(100, (ratio / (THRESHOLD_STALTA * 2)) * 100);
+  const bar  = document.getElementById(`${nodeId}STALTABar`);
+  bar.style.width      = pct + '%';
+  bar.style.background = ratio >= THRESHOLD_STALTA ? 'var(--accent-red)' :
+                         ratio >= THRESHOLD_STALTA * 0.7 ? 'var(--accent-yellow)' :
+                         'var(--accent-green)';
+}
+
+// ══════════════════════════════════════════════════════════════
+//  THRESHOLD & EVENT DETECTION
+// ══════════════════════════════════════════════════════════════
+function checkStructureStatus() {
+  const maxMag = Math.max(nodes.node1.currentMagnitude, nodes.node2.currentMagnitude);
+  const card   = document.getElementById('overallStatusCard');
+  const valEl  = document.getElementById('overallStatusValue');
+  const infoEl = document.getElementById('overallStatusInfo');
+
+  if (maxMag >= THRESHOLD_UNSAFE) {
+    if (eventEndTimeout) { clearTimeout(eventEndTimeout); eventEndTimeout = null; }
+    if (structureStatus === 'SAFE') { structureStatus = 'UNSAFE'; startUnsafeEvent(); }
+    card.classList.add('unsafe');
+    valEl.textContent = 'UNSAFE'; valEl.className = 'overall-status-value unsafe';
+    infoEl.textContent = `⚠️ Threshold exceeded! Max: ${maxMag.toFixed(2)} m/s² (limit: ${THRESHOLD_UNSAFE} m/s²)`;
+    document.getElementById('statusInfo').textContent = '⚠️ UNSAFE — Recording event…';
+  } else {
+    if (structureStatus === 'UNSAFE' && !eventEndTimeout) {
+      const endTime = new Date();
+      eventEndTimeout = setTimeout(() => {
+        endUnsafeEvent(endTime);
+        eventEndTimeout = null;
+      }, BUFFER_DURATION * 1000);
+    }
+    structureStatus = 'SAFE';
+    card.classList.remove('unsafe');
+    valEl.textContent = 'SAFE'; valEl.className = 'overall-status-value safe';
+    infoEl.textContent = `All nodes within safe parameters (Max: ${maxMag.toFixed(2)} m/s²)`;
+    document.getElementById('statusInfo').textContent = `Monitoring · Threshold: ${THRESHOLD_UNSAFE} m/s²`;
+  }
+}
+
+function startUnsafeEvent() {
+  isRecordingEvent = true;
+  eventStartTime   = new Date();
+}
+
+function endUnsafeEvent(endTime) {
+  if (!isRecordingEvent) return;
+  isRecordingEvent = false;
+
+  const bufMs        = BUFFER_DURATION * 1000;
+  const captureStart = new Date(eventStartTime.getTime() - bufMs);
+  const captureEnd   = new Date(endTime.getTime() + bufMs);
+
+  const node1Data = nodes.node1.dataBuffer.filter(d => d.timestamp >= captureStart && d.timestamp <= captureEnd);
+  const node2Data = nodes.node2.dataBuffer.filter(d => d.timestamp >= captureStart && d.timestamp <= captureEnd);
+
+  // FIX: compute event peak from captured data, not all-time node max
+  const allMags = [...node1Data, ...node2Data].map(d => d.magnitude);
+  const eventMax = allMags.length > 0 ? Math.max(...allMags) : 0;
+
+  // FIX: use timestamp-based ID to avoid collisions after clear
+  const event = {
+    id:             Date.now(),          // unique, survives clear+repopulate
+    seqNum:         unsafeEvents.length + 1,   // display number only
+    timestamp:      eventStartTime,
+    endTime,
+    duration:       (endTime - eventStartTime) / 1000,
+    maxMagnitude:   eventMax,
+    node1Data,
+    node2Data,
+    structureName:  document.getElementById('structureName').value,
+    bufferDuration: BUFFER_DURATION
+  };
+
+  unsafeEvents.unshift(event);
+  updateHistoryUI();
+  publishSnapshots();
+  toast(`⚠️ Unsafe event #${event.seqNum} recorded — ${eventMax.toFixed(2)} m/s²`, 'warn', 6000);
+}
+
+// ══════════════════════════════════════════════════════════════
+//  CONFIG
+// ══════════════════════════════════════════════════════════════
+function applyThreshold() {
+  THRESHOLD_UNSAFE = parseFloat(document.getElementById('thresholdUnsafe').value) || 11.5;
+  THRESHOLD_STALTA = parseFloat(document.getElementById('thresholdSTALTA').value) || 3.0;
+  BUFFER_DURATION  = parseInt(document.getElementById('bufferDuration').value)    || 5;
+
+  // Show inline confirmation instead of alert()
+  const fb = document.getElementById('configApplied');
+  fb.classList.add('show');
+  setTimeout(() => fb.classList.remove('show'), 2500);
+
+  toast(`Config applied · Threshold: ${THRESHOLD_UNSAFE} m/s² · Buffer: ±${BUFFER_DURATION}s`, 'success');
+  checkStructureStatus();
+}
+
+// ══════════════════════════════════════════════════════════════
+//  TAB SWITCHING
+// ══════════════════════════════════════════════════════════════
+function switchTab(name) {
+  document.querySelectorAll('.nav-tab').forEach((t,i) => t.classList.toggle('active', (name==='monitoring'&&i===0)||(name==='history'&&i===1)));
+  document.getElementById('monitoringTab').classList.toggle('active', name==='monitoring');
+  document.getElementById('historyTab').classList.toggle('active',    name==='history');
+}
+
+// ══════════════════════════════════════════════════════════════
+//  CLEAR ALL DATA
+// ══════════════════════════════════════════════════════════════
+function clearAllData() {
+  if (!confirm('⚠️ Clear ALL recorded data and events?\n\nThis also clears the persisted history on the broker. Cannot be undone.')) return;
+
+  unsafeEvents = [];
+  ['node1','node2'].forEach(id => {
+    Object.assign(nodes[id], { raw:{}, hourly:{}, daily:{}, livePoints:[], maxMagnitude:0, dataBuffer:[] });
+    document.getElementById(`${id}Max`).textContent = '—';
+  });
+  Object.values(eventCharts).forEach(c => c.destroy()); eventCharts = {};
+
+  if (mqttClient && mqttClient.connected) {
+    ['node1','node2'].forEach(id => {
+      mqttClient.publish(`eri/persist/${id}/raw`, '{}', { retain:true, qos:1 });
+    });
+    mqttClient.publish(TOPIC_PERSIST_EVENTS, '[]', { retain:true, qos:1 });
+  }
+
+  updateHistoryUI();
+  updateSpanCharts();
+  toast('All data cleared', 'info');
+}
+
+// ══════════════════════════════════════════════════════════════
+//  HISTORY UI
+// ══════════════════════════════════════════════════════════════
+function updateHistoryUI() {
+  document.getElementById('historyCount').textContent  = unsafeEvents.length;
+  document.getElementById('lastEventTime').textContent = unsafeEvents.length > 0
+    ? unsafeEvents[0].timestamp.toLocaleString() : 'Never';
+
+  const list = document.getElementById('historyList');
+  Object.values(eventCharts).forEach(c => c.destroy()); eventCharts = {};
+
+  if (unsafeEvents.length === 0) {
+    list.innerHTML = `
+      <div style="text-align:center;padding:3rem;color:var(--text-muted)">
+        <div style="font-size:3rem;margin-bottom:1rem">📊</div>
+        <div>No unsafe events recorded yet</div>
+        <div style="font-size:.875rem;margin-top:.5rem">Events appear here when the threshold is exceeded</div>
+      </div>`;
+    return;
+  }
+
+  // FIX: build one string — not innerHTML+= in a loop (re-parses DOM each time)
+  const html = unsafeEvents.map(ev => {
+    const buf = ev.bufferDuration || BUFFER_DURATION;
+    const cid = `eventChart_${ev.id}`;
+    const n1Min = ev.node1Data.length ? Math.min(...ev.node1Data.map(d=>d.magnitude)).toFixed(2) : 'N/A';
+    const n1Max = ev.node1Data.length ? Math.max(...ev.node1Data.map(d=>d.magnitude)).toFixed(2) : 'N/A';
+    const n2Min = ev.node2Data.length ? Math.min(...ev.node2Data.map(d=>d.magnitude)).toFixed(2) : 'N/A';
+    const n2Max = ev.node2Data.length ? Math.max(...ev.node2Data.map(d=>d.magnitude)).toFixed(2) : 'N/A';
+    const seqLabel = ev.seqNum || ev.id;
+    return `
+    <div class="history-item">
+      <div class="history-item-header">
+        <div class="history-timestamp">${ev.timestamp.toLocaleString()}</div>
+        <div style="display:flex;align-items:center;gap:.6rem">
+          <button class="btn-export btn-export-sm" onclick="exportEventCSV(${ev.id})">⬇ CSV</button>
+          <div class="history-badge">UNSAFE EVENT #${seqLabel}</div>
+        </div>
+      </div>
+      <div class="history-details">
+        <div class="history-detail"><div class="history-detail-label">Duration</div><div class="history-detail-value">${ev.duration.toFixed(1)} s</div></div>
+        <div class="history-detail"><div class="history-detail-label">Peak Magnitude</div><div class="history-detail-value">${ev.maxMagnitude.toFixed(2)} m/s²</div></div>
+        <div class="history-detail"><div class="history-detail-label">Structure</div><div class="history-detail-value">${ev.structureName}</div></div>
+        <div class="history-detail"><div class="history-detail-label">Total Samples</div><div class="history-detail-value">${ev.node1Data.length + ev.node2Data.length}</div></div>
+      </div>
+      <div class="history-data-buffer">
+        <div class="history-data-title">📊 Captured Data (±${buf}s buffer)</div>
+        <div class="history-data-grid">
+          <div><strong>Ground Floor:</strong> ${ev.node1Data.length} samples · ${n1Min}–${n1Max} m/s²</div>
+          <div><strong>Top Floor:</strong> ${ev.node2Data.length} samples · ${n2Min}–${n2Max} m/s²</div>
+        </div>
+        <div class="event-chart-header">
+          <span class="event-chart-title">⏱ Acceleration Timeline (±${buf}s window)</span>
+          <span class="event-window-label">🔴 Shaded = Unsafe duration</span>
+        </div>
+        <div class="event-chart-legend">
+          <span><span class="legend-dot" style="background:#06b6d4"></span>Ground Floor</span>
+          <span><span class="legend-dot" style="background:#a855f7"></span>Top Floor</span>
+          <span><span style="display:inline-block;width:14px;height:2px;background:#ef4444;vertical-align:middle;margin-right:4px"></span>Threshold</span>
+        </div>
+        <div class="event-chart-container"><canvas id="${cid}"></canvas></div>
+      </div>
+    </div>`;
+  }).join('');
+
+  list.innerHTML = html;
+  unsafeEvents.forEach(ev => renderEventChart(ev));
+}
+
+// ══════════════════════════════════════════════════════════════
+//  EVENT DETAIL CHART
+// ══════════════════════════════════════════════════════════════
+function renderEventChart(event) {
+  const canvas = document.getElementById(`eventChart_${event.id}`);
+  if (!canvas) return;
+
+  const buf            = event.bufferDuration || BUFFER_DURATION;
+  const captureStartMs = event.timestamp.getTime() - buf * 1000;
+
+  const timeSet = new Set();
+  event.node1Data.forEach(d => timeSet.add(d.timestamp.getTime()));
+  event.node2Data.forEach(d => timeSet.add(d.timestamp.getTime()));
+  const sortedMs = Array.from(timeSet).sort((a,b) => a-b);
+
+  if (sortedMs.length === 0) {
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#6b7280'; ctx.font = '12px monospace'; ctx.textAlign = 'center';
+    ctx.fillText('No data captured for this event', canvas.width/2, canvas.height/2);
+    return;
+  }
+
+  const labels    = sortedMs.map(ms => ((ms - captureStartMs)/1000).toFixed(1) + 's');
+  const n1Map = {}, n2Map = {};
+  event.node1Data.forEach(d => { n1Map[d.timestamp.getTime()] = d.magnitude; });
+  event.node2Data.forEach(d => { n2Map[d.timestamp.getTime()] = d.magnitude; });
+  const n1Values  = sortedMs.map(ms => n1Map[ms] !== undefined ? n1Map[ms] : null);
+  const n2Values  = sortedMs.map(ms => n2Map[ms] !== undefined ? n2Map[ms] : null);
+  const threshold = sortedMs.map(() => THRESHOLD_UNSAFE);
+
+  const eventStartMs = event.timestamp.getTime();
+  const eventEndMs   = event.endTime.getTime();
+
+  const shadingPlugin = {
+    id: `shading_${event.id}`,
+    beforeDraw(chart) {
+      const { ctx, chartArea, scales } = chart;
+      if (!chartArea) return;
+      const lbs = chart.data.labels;
+      let x1 = chartArea.left, x2 = chartArea.right, foundStart = false;
+      for (let i = 0; i < lbs.length; i++) {
+        const absMs = captureStartMs + parseFloat(lbs[i]) * 1000;
+        if (!foundStart && absMs >= eventStartMs) { x1 = scales.x.getPixelForValue(i); foundStart = true; }
+        if (absMs <= eventEndMs) x2 = scales.x.getPixelForValue(i);
+        if (foundStart && absMs > eventEndMs) break;
+      }
+      ctx.save();
+      ctx.fillStyle = 'rgba(239,68,68,.13)';
+      ctx.fillRect(x1, chartArea.top, x2-x1, chartArea.bottom-chartArea.top);
+      ctx.strokeStyle = 'rgba(239,68,68,.5)'; ctx.lineWidth = 1.5; ctx.setLineDash([4,3]);
+      [x1,x2].forEach(x => { ctx.beginPath(); ctx.moveTo(x,chartArea.top); ctx.lineTo(x,chartArea.bottom); ctx.stroke(); });
+      ctx.restore();
+    }
+  };
+
+  eventCharts[event.id] = new Chart(canvas, {
+    type:'line', plugins:[shadingPlugin],
+    data:{
+      labels,
+      datasets:[
+        { label:'Ground Floor', data:n1Values, borderColor:'#06b6d4', backgroundColor:'rgba(6,182,212,.08)', borderWidth:2, tension:.35, fill:false, pointRadius:2, spanGaps:true },
+        { label:'Top Floor',    data:n2Values, borderColor:'#a855f7', backgroundColor:'rgba(168,85,247,.08)', borderWidth:2, tension:.35, fill:false, pointRadius:2, spanGaps:true },
+        { label:`Threshold (${THRESHOLD_UNSAFE})`, data:threshold, borderColor:'rgba(239,68,68,.7)', borderWidth:1.5, borderDash:[6,4], pointRadius:0, fill:false, tension:0 }
+      ]
+    },
+    options:{
+      responsive:true, maintainAspectRatio:false, animation:false,
+      interaction:{ mode:'index', intersect:false },
+      plugins:{ legend:{ display:false },
+        tooltip:{ backgroundColor:'#1a2332', borderColor:'#2d3748', borderWidth:1,
+          titleColor:'#9ca3af', bodyColor:'#fff', padding:10,
+          callbacks:{ label: c => ` ${c.dataset.label}: ${c.parsed.y!==null?c.parsed.y.toFixed(3)+' m/s²':'N/A'}` } }
+      },
+      scales:{
+        x:{ ticks:{ color:'#6b7280', maxTicksLimit:12, font:{size:9} }, grid:{ color:'rgba(255,255,255,.04)' },
+            title:{ display:true, text:'Time from capture start (s)', color:'#6b7280', font:{size:9} } },
+        y:{ ticks:{ color:'#6b7280', font:{size:10} }, grid:{ color:'rgba(255,255,255,.04)' },
+            title:{ display:true, text:'Magnitude (m/s²)', color:'#6b7280', font:{size:10} } }
+      }
+    }
+  });
+}
+
+// ══════════════════════════════════════════════════════════════
+//  CSV EXPORT
+// ══════════════════════════════════════════════════════════════
+function dlCSV(name, content) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([content], { type:'text/csv;charset=utf-8;' }));
+  a.download = name; a.click(); URL.revokeObjectURL(a.href);
+}
+function csvF(val) {
+  const s = String(val ?? '');
+  return (s.includes(',') || s.includes('"') || s.includes('\n')) ? '"'+s.replace(/"/g,'""')+'"' : s;
+}
+
+function exportNodeCSV(nodeId) {
+  const node = nodes[nodeId];
+  if (node.livePoints.length === 0) { toast(`No data yet for ${node.name}`, 'warn'); return; }
+  const rows = [
+    ['ERI - ' + node.name + ' Acceleration Data'],
+    ['Structure', csvF(document.getElementById('structureName').value)],
+    ['Exported',  csvF(new Date().toLocaleString())],
+    ['Total Points', node.livePoints.length], [],
+    ['Timestamp', 'Epoch_ms', 'X_ms2', 'Y_ms2', 'Z_ms2_grav_corr', 'Magnitude_ms2']
+  ];
+  // livePoints format: [epochMs, magnitude, x, y, z]
+  // x/y/z are null for points restored from broker snapshot (those only carry magnitude)
+  node.livePoints.forEach(p => {
+    const [epochMs, mag, px, py, pz] = p;
+    rows.push([
+      csvF(new Date(epochMs).toLocaleString()),
+      epochMs,
+      px != null ? px.toFixed(4) : '',
+      py != null ? py.toFixed(4) : '',
+      pz != null ? pz.toFixed(4) : '',
+      mag.toFixed(4)
+    ]);
+  });
+  dlCSV(`ERI_${node.name.replace(/\s+/g,'_')}_${new Date().toISOString().slice(0,10)}.csv`, rows.map(r=>r.join(',')).join('\r\n'));
+  toast(`Exported ${node.livePoints.length} points for ${node.name}`, 'success');
+}
+
+function exportEventCSV(eventId) {
+  const event = unsafeEvents.find(e => e.id === eventId);
+  if (!event) return;
+  const buf   = event.bufferDuration || BUFFER_DURATION;
+  const allPts = [
+    ...event.node1Data.map(d => ({ ...d, nodeName:'Ground Floor' })),
+    ...event.node2Data.map(d => ({ ...d, nodeName:'Top Floor' }))
+  ].sort((a,b) => a.timestamp - b.timestamp);
+  const rows = [
+    ['ERI - Unsafe Event #' + (event.seqNum || event.id)],
+    ['Structure', csvF(event.structureName)],
+    ['Event Start', csvF(event.timestamp.toLocaleString())],
+    ['Event End',   csvF(event.endTime.toLocaleString())],
+    ['Duration_s',  event.duration.toFixed(2)],
+    ['Peak_Magnitude_m_s2', event.maxMagnitude.toFixed(4)],
+    ['Buffer_s',    buf],
+    ['Exported',    csvF(new Date().toLocaleString())], [],
+    ['Timestamp','Epoch_ms','Node','Magnitude_m_s2','X_m_s2','Y_m_s2','Z_m_s2']
+  ];
+  allPts.forEach(d => rows.push([csvF(d.timestamp.toLocaleString()), d.timestamp.getTime(), csvF(d.nodeName), d.magnitude.toFixed(4), (d.x??'').toString(), (d.y??'').toString(), (d.z??'').toString()]));
+  dlCSV(`ERI_Event${event.seqNum||event.id}_${event.timestamp.toISOString().slice(0,10)}.csv`, rows.map(r=>r.join(',')).join('\r\n'));
+}
+
+function exportAllEventsCSV() {
+  if (unsafeEvents.length === 0) { toast('No unsafe events to export', 'warn'); return; }
+  const structure = csvF(document.getElementById('structureName').value);
+  const rows = [
+    ['ERI - All Unsafe Events Summary'],
+    ['Structure', structure],
+    ['Exported',  csvF(new Date().toLocaleString())],
+    ['Total Events', unsafeEvents.length], [],
+    ['Event_ID','Start_Timestamp','End_Timestamp','Duration_s','Peak_Magnitude_m_s2','Buffer_s','Ground_Samples','Top_Samples','Structure']
+  ];
+  unsafeEvents.forEach(ev => rows.push([
+    ev.seqNum||ev.id, csvF(ev.timestamp.toLocaleString()), csvF(ev.endTime.toLocaleString()),
+    ev.duration.toFixed(2), ev.maxMagnitude.toFixed(4), ev.bufferDuration||BUFFER_DURATION,
+    ev.node1Data.length, ev.node2Data.length, csvF(ev.structureName)
+  ]));
+  rows.push([],['--- DETAILED READINGS ---'],['Event_ID','Timestamp','Epoch_ms','Node','Magnitude_m_s2','X_m_s2','Y_m_s2','Z_m_s2']);
+  unsafeEvents.forEach(ev => {
+    const all = [...ev.node1Data.map(d=>({...d,nn:'Ground Floor'})),...ev.node2Data.map(d=>({...d,nn:'Top Floor'}))].sort((a,b)=>a.timestamp-b.timestamp);
+    all.forEach(d => rows.push([ev.seqNum||ev.id,csvF(d.timestamp.toLocaleString()),d.timestamp.getTime(),csvF(d.nn),d.magnitude.toFixed(4),(d.x??'').toString(),(d.y??'').toString(),(d.z??'').toString()]));
+  });
+  dlCSV(`ERI_AllEvents_${new Date().toISOString().slice(0,10)}.csv`, rows.map(r=>r.join(',')).join('\r\n'));
+  toast(`Exported ${unsafeEvents.length} events`, 'success');
+}
+
+// ══════════════════════════════════════════════════════════════
+//  INIT
+// ══════════════════════════════════════════════════════════════
+window.addEventListener('load', connectMQTT);
+</script>
 </body>
 </html>
