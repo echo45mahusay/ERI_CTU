@@ -299,6 +299,140 @@ body {
 @media (max-width:1200px) { .nodes-grid { grid-template-columns:1fr; } }
 @media (max-width:900px)  { .node-stats { grid-template-columns:repeat(2,1fr); } }
 @media (max-width:768px)  { .nav-tabs { display:none; } .container { padding:1rem; } .config-grid { grid-template-columns:1fr; } }
+
+/* ── Zoom controls ───────────────────────────────────────────── */
+.chart-controls {
+  display:flex; align-items:center; justify-content:space-between;
+  margin-bottom:.3rem; min-height:20px;
+}
+.chart-zoom-hint {
+  font-size:.62rem; color:var(--text-muted); letter-spacing:.3px;
+  opacity:.7; user-select:none;
+}
+.btn-reset-zoom {
+  padding:.2rem .6rem;
+  background:rgba(251,191,36,.1); border:1px solid rgba(251,191,36,.3);
+  border-radius:4px; color:var(--accent-yellow);
+  font-family:'JetBrains Mono',monospace; font-size:.62rem; font-weight:600;
+  cursor:pointer; transition:all .2s; display:none;
+}
+.btn-reset-zoom.visible { display:block; }
+.btn-reset-zoom:hover { background:rgba(251,191,36,.2); }
+.zoom-bar {
+  display:flex; align-items:center; gap:.75rem;
+  padding:.4rem .75rem; margin-bottom:.5rem;
+  background:rgba(255,255,255,.02); border:1px solid var(--border-color);
+  border-radius:6px; font-size:.65rem; color:var(--text-muted);
+}
+.zoom-bar-label { letter-spacing:.3px; }
+.node-card canvas { cursor: default; }
+.chart-scroll-bar {
+  display:none; align-items:center; gap:.6rem;
+  padding:.4rem .25rem .1rem; margin-top:.25rem;
+}
+.chart-scroll-bar.visible { display:flex; }
+.scroll-time-label {
+  font-size:.62rem; color:var(--text-muted); white-space:nowrap;
+  min-width:34px; text-align:center; font-family:var(--mono);
+}
+.chart-slider {
+  -webkit-appearance:none; appearance:none;
+  flex:1; height:4px; border-radius:2px;
+  background:var(--border-color); outline:none; cursor:pointer;
+  transition:background .2s;
+}
+.chart-slider:hover { background:var(--border-hi); }
+.chart-slider::-webkit-slider-thumb {
+  -webkit-appearance:none; appearance:none;
+  width:18px; height:18px; border-radius:50%;
+  background:var(--accent-cyan); cursor:pointer;
+  box-shadow:0 0 0 3px rgba(6,182,212,.2);
+  transition:box-shadow .2s;
+}
+.chart-slider::-webkit-slider-thumb:hover {
+  box-shadow:0 0 0 5px rgba(6,182,212,.3);
+}
+.chart-slider::-moz-range-thumb {
+  width:18px; height:18px; border-radius:50%;
+  background:var(--accent-cyan); cursor:pointer; border:none;
+  box-shadow:0 0 0 3px rgba(6,182,212,.2);
+}
+
+/* ── Fuzzy Logic Panel ────────────────────────────────────────── */
+.fuzzy-panel {
+  margin-top:.9rem;
+  background:rgba(6,182,212,.04);
+  border:1px solid rgba(6,182,212,.2);
+  border-radius:8px; padding:1rem;
+}
+.fuzzy-panel-title {
+  font-size:.72rem; letter-spacing:.08em; text-transform:uppercase;
+  color:var(--accent-cyan); font-weight:700; margin-bottom:.75rem;
+  display:flex; align-items:center; gap:.5rem;
+}
+.fuzzy-verdict-row {
+  display:flex; align-items:center; gap:1rem; margin-bottom:.75rem; flex-wrap:wrap;
+}
+.fuzzy-verdict {
+  font-family:'JetBrains Mono',monospace; font-size:1.05rem; font-weight:700;
+  padding:.35rem 1rem; border-radius:6px; letter-spacing:.06em; text-transform:uppercase;
+}
+.fuzzy-verdict.SAFE    { background:rgba(16,185,129,.15); color:var(--accent-green); border:1px solid rgba(16,185,129,.35); }
+.fuzzy-verdict.WARNING { background:rgba(251,191,36,.12);  color:var(--accent-yellow);border:1px solid rgba(251,191,36,.35); }
+.fuzzy-verdict.UNSAFE  { background:rgba(239,68,68,.12);   color:var(--accent-red);   border:1px solid rgba(239,68,68,.35);  }
+.fuzzy-conf-label { font-size:.78rem; color:var(--text-secondary); }
+.fuzzy-conf-label strong { font-size:.9rem; }
+.fuzzy-inputs-row { display:flex; gap:1rem; flex-wrap:wrap; margin-bottom:.75rem; }
+.fuzzy-input-chip {
+  background:var(--bg-secondary); border:1px solid var(--border-color);
+  border-radius:6px; padding:.35rem .75rem; font-size:.72rem;
+}
+.fuzzy-input-chip span { color:var(--text-muted); }
+.fuzzy-input-chip strong { color:var(--text-primary); }
+.fuzzy-membership-section { margin-bottom:.75rem; }
+.fuzzy-membership-title {
+  font-size:.65rem; letter-spacing:.08em; text-transform:uppercase;
+  color:var(--text-muted); margin-bottom:.4rem;
+}
+.fuzzy-membar-row { display:flex; align-items:center; gap:.5rem; margin-bottom:.3rem; }
+.fuzzy-membar-label { font-size:.65rem; width:68px; color:var(--text-secondary); letter-spacing:.04em; }
+.fuzzy-membar-track { flex:1; height:8px; background:var(--border-color); border-radius:4px; overflow:hidden; }
+.fuzzy-membar-fill  { height:100%; border-radius:4px; transition:width .4s; }
+.fuzzy-membar-fill.safe    { background:var(--accent-green); }
+.fuzzy-membar-fill.warning { background:var(--accent-yellow); }
+.fuzzy-membar-fill.unsafe  { background:var(--accent-red); }
+.fuzzy-membar-value { font-size:.65rem; width:38px; text-align:right; color:var(--text-muted); }
+.fuzzy-rules-section { margin-top:.6rem; }
+.fuzzy-rules-title {
+  font-size:.65rem; letter-spacing:.08em; text-transform:uppercase;
+  color:var(--text-muted); margin-bottom:.4rem;
+}
+.fuzzy-rule-row { display:flex; align-items:center; gap:.5rem; margin-bottom:.25rem; }
+.fuzzy-rule-strength {
+  width:38px; height:6px; border-radius:3px; flex-shrink:0;
+  position:relative; overflow:hidden; background:var(--border-color);
+}
+.fuzzy-rule-fill {
+  height:100%; position:absolute; left:0; top:0; border-radius:3px;
+}
+.fuzzy-rule-fill.safe    { background:var(--accent-green); }
+.fuzzy-rule-fill.warning { background:var(--accent-yellow); }
+.fuzzy-rule-fill.unsafe  { background:var(--accent-red); }
+.fuzzy-rule-desc  { font-size:.65rem; color:var(--text-muted); line-height:1.3; }
+.fuzzy-rule-pct   { margin-left:auto; font-size:.65rem; color:var(--text-muted); white-space:nowrap; }
+.fuzzy-centroid-row { display:flex; align-items:center; gap:.5rem; margin-top:.6rem; }
+.fuzzy-centroid-label { font-size:.65rem; color:var(--text-muted); }
+.fuzzy-centroid-track {
+  flex:1; height:10px; border-radius:5px; position:relative; overflow:visible;
+  background:linear-gradient(to right,var(--accent-green) 0%,var(--accent-yellow) 35%,var(--accent-yellow) 65%,var(--accent-red) 100%);
+  opacity:.5;
+}
+.fuzzy-centroid-marker {
+  position:absolute; top:50%; transform:translateY(-50%);
+  width:14px; height:14px; background:#fff; border-radius:50%;
+  box-shadow:0 0 6px rgba(0,0,0,.5); margin-left:-7px; transition:left .4s;
+}
+.fuzzy-centroid-value { font-size:.65rem; color:var(--text-muted); width:36px; text-align:right; }
 </style>
 </head>
 <body>
@@ -435,6 +569,11 @@ body {
           </div>
           <div class="stalta-track"><div class="stalta-fill" id="node1STALTABar"></div></div>
         </div>
+        <!-- Zoom controls bar -->
+        <div class="zoom-bar">
+          <span class="zoom-bar-label">🔍 Scroll to zoom · Use slider below to pan · Double-click to reset</span>
+          <button class="btn-reset-zoom" id="node1ResetZoom" onclick="resetNodeZoom('node1')">↺ Reset Zoom</button>
+        </div>
         <!-- 2×2 axis charts -->
         <div class="chart-grid">
           <div>
@@ -453,6 +592,15 @@ body {
             <div class="chart-axis-label"><span class="dot" style="background:#fbbf24"></span>Magnitude</div>
             <div class="chart-wrapper"><canvas id="node1Chart"></canvas></div>
           </div>
+        </div>
+
+        <!-- Horizontal scroll slider — appears when zoomed in -->
+        <div class="chart-scroll-bar" id="node1ScrollBar">
+          <span class="scroll-time-label" id="node1SliderMin">00:00</span>
+          <input type="range" class="chart-slider" id="node1Slider"
+                 min="0" max="1439" value="0" step="1"
+                 oninput="onSliderInput('node1', this.value)">
+          <span class="scroll-time-label" id="node1SliderMax">23:59</span>
         </div>
       </div>
 
@@ -502,6 +650,11 @@ body {
           </div>
           <div class="stalta-track"><div class="stalta-fill" id="node2STALTABar"></div></div>
         </div>
+        <!-- Zoom controls bar -->
+        <div class="zoom-bar">
+          <span class="zoom-bar-label">🔍 Scroll to zoom · Use slider below to pan · Double-click to reset</span>
+          <button class="btn-reset-zoom" id="node2ResetZoom" onclick="resetNodeZoom('node2')">↺ Reset Zoom</button>
+        </div>
         <!-- 2×2 axis charts -->
         <div class="chart-grid">
           <div>
@@ -520,6 +673,15 @@ body {
             <div class="chart-axis-label"><span class="dot" style="background:#fbbf24"></span>Magnitude</div>
             <div class="chart-wrapper"><canvas id="node2Chart"></canvas></div>
           </div>
+        </div>
+
+        <!-- Horizontal scroll slider — appears when zoomed in -->
+        <div class="chart-scroll-bar" id="node2ScrollBar">
+          <span class="scroll-time-label" id="node2SliderMin">00:00</span>
+          <input type="range" class="chart-slider" id="node2Slider"
+                 min="0" max="1439" value="0" step="1"
+                 oninput="onSliderInput('node2', this.value)">
+          <span class="scroll-time-label" id="node2SliderMax">23:59</span>
         </div>
       </div>
 
@@ -596,6 +758,73 @@ function toast(msg, type = 'info', duration = 3000) {
 }
 
 // ══════════════════════════════════════════════════════════════
+//  24-HOUR FIXED DAY GRID
+//  1440 slots, one per minute (00:00 → 23:59).
+//  Resets automatically at midnight. Each incoming reading fills
+//  the slot matching its local time, so the graph always shows a
+//  full day axis regardless of when the page was opened.
+// ══════════════════════════════════════════════════════════════
+
+// Build the 1440 time-label array once at startup
+const DAY_LABELS = (function() {
+  const out = [];
+  for (let h = 0; h < 24; h++)
+    for (let m = 0; m < 60; m++)
+      out.push(String(h).padStart(2,'0') + ':' + String(m).padStart(2,'0'));
+  return out; // ['00:00', '00:01', … '23:59']
+})();
+
+// One data array per axis per node, pre-filled with null (1440 slots)
+function emptyDay() { return { mag: Array(1440).fill(null), ax: Array(1440).fill(null), ay: Array(1440).fill(null), az: Array(1440).fill(null) }; }
+const daySlots = { node1: emptyDay(), node2: emptyDay() };
+
+// Return the minute index (0-1439) for a given epoch-ms timestamp
+function minuteIndex(epochMs) {
+  const d = new Date(epochMs);
+  return d.getHours() * 60 + d.getMinutes();
+}
+
+// Write one reading into the correct minute slot
+function writeDaySlot(nodeId, epochMs, mag, ax, ay, az) {
+  const idx = minuteIndex(epochMs);
+  const s   = daySlots[nodeId];
+  // Keep the highest magnitude seen in the slot (multiple readings per minute)
+  if (s.mag[idx] === null || mag > s.mag[idx]) {
+    s.mag[idx] = mag;
+    s.ax[idx]  = ax;
+    s.ay[idx]  = ay;
+    s.az[idx]  = az;
+  }
+}
+
+// Reset all day slots at midnight and reschedule
+function resetDaySlots() {
+  ['node1','node2'].forEach(id => { daySlots[id] = emptyDay(); });
+  updateSpanCharts();
+  console.log('[ERI] Day slots reset at midnight');
+  scheduleMidnightReset();   // schedule next reset
+}
+
+function scheduleMidnightReset() {
+  const now      = new Date();
+  const midnight = new Date(now);
+  midnight.setHours(24, 0, 0, 0);   // next 00:00:00.000
+  const msLeft   = midnight - now;
+  setTimeout(resetDaySlots, msLeft);
+  console.log(`[ERI] Midnight reset scheduled in ${Math.round(msLeft/1000)}s`);
+}
+
+// Seed day slots from snapshot-restored livePoints on page load
+function seedDaySlotsFromHistory(nodeId) {
+  const today = new Date(); today.setHours(0,0,0,0);
+  nodes[nodeId].livePoints.forEach(p => {
+    const [epochMs, mag, ax, ay, az] = p;
+    if (new Date(epochMs) >= today)   // only today's data
+      writeDaySlot(nodeId, epochMs, mag, ax ?? 0, ay ?? 0, az ?? 0);
+  });
+}
+
+// ══════════════════════════════════════════════════════════════
 //  STATE
 // ══════════════════════════════════════════════════════════════
 let mqttClient     = null;
@@ -614,14 +843,14 @@ const nodes = {
     id:'node1', name:'Ground Floor', online:false,
     currentMagnitude:0, maxMagnitude:0, staLtaRatio:0,
     x:0, y:0, z:0,
-    dataBuffer:[], livePoints:[],
+    dataBuffer:[], livePoints:[], sessionPoints:[],
     raw:{}, hourly:{}, daily:{}
   },
   node2: {
     id:'node2', name:'Top Floor', online:false,
     currentMagnitude:0, maxMagnitude:0, staLtaRatio:0,
     x:0, y:0, z:0,
-    dataBuffer:[], livePoints:[],
+    dataBuffer:[], livePoints:[], sessionPoints:[],
     raw:{}, hourly:{}, daily:{}
   }
 };
@@ -697,10 +926,20 @@ requestAnimationFrame(() => {
   node2ChartZ = mkChart('node2ChartZ','#a855f7','rgba(168,85,247,.12)', 'Top Z (gravity-corrected)', 'Acceleration (m/s²)');
   node2Chart  = mkChart('node2Chart', '#fbbf24','rgba(251,191,36,.10)', 'Top Magnitude');
 
-  // Safety resize pass after full first paint
+  // Safety resize pass after full first paint, then wire zoom/pan
   setTimeout(() => {
     [node1Chart,node1ChartX,node1ChartY,node1ChartZ,
      node2Chart,node2ChartX,node2ChartY,node2ChartZ].forEach(ch => ch.resize());
+
+    // Attach zoom/pan to each node's 4-canvas group
+    addZoomPan(
+      ['node1ChartX','node1ChartY','node1ChartZ','node1Chart'].map(id => document.getElementById(id)),
+      'node1'
+    );
+    addZoomPan(
+      ['node2ChartX','node2ChartY','node2ChartZ','node2Chart'].map(id => document.getElementById(id)),
+      'node2'
+    );
   }, 250);
 });
 
@@ -781,6 +1020,8 @@ function restoreSnapshot(nodeId, payload) {
       node.maxMagnitude = snap.maxMagnitude;
       document.getElementById(`${nodeId}Max`).textContent = snap.maxMagnitude.toFixed(2);
     }
+    // Seed today's day-slot grid from restored history
+    seedDaySlotsFromHistory(nodeId);
   } catch(e) { console.warn('[persist] restore failed:', nodeId, e); }
 }
 
@@ -821,7 +1062,7 @@ function hydrateEvent(raw) {
 //  TIME SPAN
 // ══════════════════════════════════════════════════════════════
 const spanLabels = {
-  '24H':'Showing last 24 hours · Real-time (1 Hz)',
+  '24H':'Today (00:00 – 23:59) · Resets at midnight',
   '7D' :'Showing last 7 days · Hourly peak',
   '30D':'Showing last 30 days · 4-hour peak',
   '1Y' :'Showing last 365 days · Daily peak'
@@ -832,6 +1073,7 @@ function setTimeSpan(span) {
   document.querySelectorAll('.span-btn').forEach(b => b.classList.remove('active'));
   document.getElementById('span' + span).classList.add('active');
   document.getElementById('spanInfo').textContent = spanLabels[span];
+  if (span === '24H') { updateSpanCharts(); }
   updateSpanCharts();
 }
 
@@ -855,6 +1097,10 @@ function updateSpanCharts() {
     chX.data.labels = labels; chX.data.datasets[0].data = ax; chX.update('none');
     chY.data.labels = labels; chY.data.datasets[0].data = ay; chY.update('none');
     chZ.data.labels = labels; chZ.data.datasets[0].data = az; chZ.update('none');
+
+    // If user has not zoomed, keep the full-day x-axis range visible
+    // (auto-zoom animation manages this during its run; after it ends,
+    // leave the charts at whatever range they settled on)
   });
 }
 
@@ -864,18 +1110,14 @@ function getSpanData(nodeId) {
   const EMPTY = { labels:[], mag:[], ax:[], ay:[], az:[] };
 
   if (currentTimeSpan === '24H') {
-    // livePoints: [epochMs, magnitude, x, y, z]
-    // x/y/z may be undefined for points restored from snapshot (those only have mag)
-    const MAX  = 600;
-    const pts  = node.livePoints;
-    const step = Math.max(1, Math.floor(pts.length / MAX));
-    const sam  = pts.filter((_,i) => i % step === 0);
+    // Use the fixed 1440-slot day grid (one slot per minute, 00:00 – 23:59).
+    // Slots before the current minute are filled; future slots are null.
     return {
-      labels: sam.map(p => new Date(p[0]).toLocaleTimeString()),
-      mag:    sam.map(p => p[1]),
-      ax:     sam.map(p => p[2] ?? null),
-      ay:     sam.map(p => p[3] ?? null),
-      az:     sam.map(p => p[4] ?? null)
+      labels: DAY_LABELS,
+      mag:    [...daySlots[nodeId].mag],
+      ax:     [...daySlots[nodeId].ax],
+      ay:     [...daySlots[nodeId].ay],
+      az:     [...daySlots[nodeId].az]
     };
   }
 
@@ -951,6 +1193,7 @@ function onConnect() {
   mqttClient.subscribe('eri/persist/#',   { qos:1 });
   mqttClient.subscribe(TOPIC_ACCEL,       { qos:0 });
   mqttClient.subscribe(TOPIC_STALTA,      { qos:0 });
+  mqttClient.subscribe('eri/earthquake/+/fuzzy_event', { qos:0 });
   mqttClient.subscribe(TOPIC_STATUS,      { qos:0 });
 
   // Failsafe: mark history loaded after 5 s if no retained message arrives
@@ -986,6 +1229,11 @@ function onMessage(topic, payload) {
       updateAccelData(nodeId, data);
     } else if (type === 'stalta') {
       updateSTALTA(nodeId, data);
+    } else if (type === 'fuzzy_event') {
+      // Firmware-computed post-event fuzzy assessment — store for display
+      // (Dashboard also computes this independently; firmware version
+      //  confirms consistency between firmware and dashboard logic.)
+      console.log('[Fuzzy Event from firmware]', nodeId, data);
     } else if (type === 'status') {
       const isOnline = data.status === 'online';
       const el = document.getElementById(`${nodeId}Status`);
@@ -1054,10 +1302,22 @@ function updateAccelData(nodeId, data) {
   node.dataBuffer.push({ timestamp:ts, magnitude:mag, x:node.x, y:node.y, z:node.z });
   if (node.dataBuffer.length > 600) node.dataBuffer.shift();
 
-  // livePoints for chart (full 24H)
+  // livePoints for chart (full 24H) — mix of snapshot-restored + live
   node.livePoints.push([epochMs, mag, node.x, node.y, node.z]);
   const cut24 = epochMs - 86400000;
   while (node.livePoints.length > 0 && node.livePoints[0][0] < cut24) node.livePoints.shift();
+
+  // sessionPoints — live data ONLY from this page session, always has x/y/z.
+  // Used for CSV export so the axis columns are never blank.
+  node.sessionPoints.push([epochMs, mag, node.x, node.y, node.z]);
+  // Trim to 24h in case of very long sessions
+  while (node.sessionPoints.length > 0 && node.sessionPoints[0][0] < cut24) node.sessionPoints.shift();
+
+  // Write to fixed day-slot grid for the 00:00–23:59 chart view
+  writeDaySlot(nodeId, epochMs, mag, node.x, node.y, node.z);
+
+  // First live reading triggers the zoom-in → zoom-out animation
+  autoZoom.trigger(nodeId);
 
   // Aggregation buckets
   const tenSecKey = String(Math.floor(epochMs/10000)*10000);
@@ -1068,6 +1328,7 @@ function updateAccelData(nodeId, data) {
   const dayKey = String(new Date(d.getFullYear(),d.getMonth(),d.getDate()).getTime());
   if (node.daily[dayKey]===undefined || mag>node.daily[dayKey]) node.daily[dayKey]=mag;
 
+  // Always update day-slot charts when in 24H view
   if (currentTimeSpan === '24H') updateSpanCharts();
   scheduleSnapshot();
   checkStructureStatus();
@@ -1159,10 +1420,14 @@ function endUnsafeEvent(endTime) {
     bufferDuration: BUFFER_DURATION
   };
 
+  // Run full dual-input Mamdani fuzzy assessment for the completed event
+  event.fuzzy = Fuzzy.assess(event.duration, event.maxMagnitude);
+
   unsafeEvents.unshift(event);
   updateHistoryUI();
   publishSnapshots();
-  toast(`⚠️ Unsafe event #${event.seqNum} recorded — ${eventMax.toFixed(2)} m/s²`, 'warn', 6000);
+  const fzLabel = event.fuzzy ? ` 🧠 ${event.fuzzy.status} (${event.fuzzy.confidence}%)` : '';
+  toast(`⚠️ Unsafe event #${event.seqNum} — ${eventMax.toFixed(2)} m/s²${fzLabel}`, 'warn', 7000);
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -1199,7 +1464,7 @@ function clearAllData() {
 
   unsafeEvents = [];
   ['node1','node2'].forEach(id => {
-    Object.assign(nodes[id], { raw:{}, hourly:{}, daily:{}, livePoints:[], maxMagnitude:0, dataBuffer:[] });
+    Object.assign(nodes[id], { raw:{}, hourly:{}, daily:{}, livePoints:[], sessionPoints:[], maxMagnitude:0, dataBuffer:[] });
     document.getElementById(`${id}Max`).textContent = '—';
   });
   Object.values(eventCharts).forEach(c => c.destroy()); eventCharts = {};
@@ -1211,6 +1476,8 @@ function clearAllData() {
     mqttClient.publish(TOPIC_PERSIST_EVENTS, '[]', { retain:true, qos:1 });
   }
 
+  daySlots.node1 = emptyDay();
+  daySlots.node2 = emptyDay();
   updateHistoryUI();
   updateSpanCharts();
   toast('All data cleared', 'info');
@@ -1246,11 +1513,28 @@ function updateHistoryUI() {
     const n2Min = ev.node2Data.length ? Math.min(...ev.node2Data.map(d=>d.magnitude)).toFixed(2) : 'N/A';
     const n2Max = ev.node2Data.length ? Math.max(...ev.node2Data.map(d=>d.magnitude)).toFixed(2) : 'N/A';
     const seqLabel = ev.seqNum || ev.id;
+    // Run fuzzy if not already stored (e.g. restored from broker snapshot)
+    if (!ev.fuzzy) ev.fuzzy = Fuzzy.assess(ev.duration, ev.maxMagnitude);
+    const fzStatus = ev.fuzzy ? ev.fuzzy.status : '—';
+    const fzConf   = ev.fuzzy ? ev.fuzzy.confidence.toFixed(1) + '%' : '—';
+    const fzColor  = fzStatus === 'SAFE'    ? 'rgba(16,185,129,.15)' :
+                     fzStatus === 'UNSAFE'  ? 'rgba(239,68,68,.12)' :
+                                              'rgba(251,191,36,.12)';
+    const fzBorder = fzStatus === 'SAFE'    ? 'rgba(16,185,129,.4)' :
+                     fzStatus === 'UNSAFE'  ? 'rgba(239,68,68,.4)' :
+                                              'rgba(251,191,36,.4)';
+    const fzText   = fzStatus === 'SAFE'    ? 'var(--accent-green)' :
+                     fzStatus === 'UNSAFE'  ? 'var(--accent-red)' :
+                                              'var(--accent-yellow)';
     return `
     <div class="history-item">
       <div class="history-item-header">
         <div class="history-timestamp">${ev.timestamp.toLocaleString()}</div>
-        <div style="display:flex;align-items:center;gap:.6rem">
+        <div style="display:flex;align-items:center;gap:.6rem;flex-wrap:wrap">
+          <span style="font-size:.72rem;padding:.2rem .65rem;border-radius:5px;
+                       background:${fzColor};border:1px solid ${fzBorder};color:${fzText};font-weight:700">
+            🧠 ${fzStatus} ${fzConf}
+          </span>
           <button class="btn-export btn-export-sm" onclick="exportEventCSV(${ev.id})">⬇ CSV</button>
           <div class="history-badge">UNSAFE EVENT #${seqLabel}</div>
         </div>
@@ -1277,6 +1561,7 @@ function updateHistoryUI() {
           <span><span style="display:inline-block;width:14px;height:2px;background:#ef4444;vertical-align:middle;margin-right:4px"></span>Threshold</span>
         </div>
         <div class="event-chart-container"><canvas id="${cid}"></canvas></div>
+        ${ev.fuzzy ? Fuzzy.buildPanel(ev) : ''}
       </div>
     </div>`;
   }).join('');
@@ -1383,29 +1668,41 @@ function csvF(val) {
 
 function exportNodeCSV(nodeId) {
   const node = nodes[nodeId];
-  if (node.livePoints.length === 0) { toast(`No data yet for ${node.name}`, 'warn'); return; }
+
+  // sessionPoints: live readings from this page session — always has x/y/z.
+  // livePoints: mix of snapshot-restored (no x/y/z) + live data — used for charts only.
+  // We export from sessionPoints so axis columns are never blank.
+  if (node.sessionPoints.length === 0) {
+    toast(`No live data yet for ${node.name}. Wait for MQTT readings to arrive.`, 'warn', 5000);
+    return;
+  }
+
   const rows = [
     ['ERI - ' + node.name + ' Acceleration Data'],
-    ['Structure', csvF(document.getElementById('structureName').value)],
-    ['Exported',  csvF(new Date().toLocaleString())],
-    ['Total Points', node.livePoints.length], [],
+    ['Structure',    csvF(document.getElementById('structureName').value)],
+    ['Exported',     csvF(new Date().toLocaleString())],
+    ['Session Points', node.sessionPoints.length],
+    ['Note', 'X/Y/Z values are from live MQTT readings in the current session. Z-axis has gravity (9.80665 m/s2) subtracted.'],
+    [],
     ['Timestamp', 'Epoch_ms', 'X_ms2', 'Y_ms2', 'Z_ms2_grav_corr', 'Magnitude_ms2']
   ];
-  // livePoints format: [epochMs, magnitude, x, y, z]
-  // x/y/z are null for points restored from broker snapshot (those only carry magnitude)
-  node.livePoints.forEach(p => {
-    const [epochMs, mag, px, py, pz] = p;
+
+  node.sessionPoints.forEach(([epochMs, mag, px, py, pz]) => {
     rows.push([
       csvF(new Date(epochMs).toLocaleString()),
       epochMs,
-      px != null ? px.toFixed(4) : '',
-      py != null ? py.toFixed(4) : '',
-      pz != null ? pz.toFixed(4) : '',
+      px != null ? px.toFixed(4) : '0.0000',
+      py != null ? py.toFixed(4) : '0.0000',
+      pz != null ? pz.toFixed(4) : '0.0000',
       mag.toFixed(4)
     ]);
   });
-  dlCSV(`ERI_${node.name.replace(/\s+/g,'_')}_${new Date().toISOString().slice(0,10)}.csv`, rows.map(r=>r.join(',')).join('\r\n'));
-  toast(`Exported ${node.livePoints.length} points for ${node.name}`, 'success');
+
+  dlCSV(
+    `ERI_${node.name.replace(/\s+/g,'_')}_${new Date().toISOString().slice(0,10)}.csv`,
+    rows.map(r => r.join(',')).join('\r\n')
+  );
+  toast(`Exported ${node.sessionPoints.length} readings for ${node.name}`, 'success');
 }
 
 function exportEventCSV(eventId) {
@@ -1416,15 +1713,23 @@ function exportEventCSV(eventId) {
     ...event.node1Data.map(d => ({ ...d, nodeName:'Ground Floor' })),
     ...event.node2Data.map(d => ({ ...d, nodeName:'Top Floor' }))
   ].sort((a,b) => a.timestamp - b.timestamp);
+  const fz = event.fuzzy || Fuzzy.assess(event.duration, event.maxMagnitude);
   const rows = [
     ['ERI - Unsafe Event #' + (event.seqNum || event.id)],
-    ['Structure', csvF(event.structureName)],
-    ['Event Start', csvF(event.timestamp.toLocaleString())],
-    ['Event End',   csvF(event.endTime.toLocaleString())],
-    ['Duration_s',  event.duration.toFixed(2)],
+    ['Structure',           csvF(event.structureName)],
+    ['Event Start',         csvF(event.timestamp.toLocaleString())],
+    ['Event End',           csvF(event.endTime.toLocaleString())],
+    ['Duration_s',          event.duration.toFixed(2)],
     ['Peak_Magnitude_m_s2', event.maxMagnitude.toFixed(4)],
-    ['Buffer_s',    buf],
-    ['Exported',    csvF(new Date().toLocaleString())], [],
+    ['Buffer_s',            buf],
+    ['--- Fuzzy Assessment (Mamdani: Duration x Magnitude) ---'],
+    ['Fuzzy_Status',        fz.status],
+    ['Fuzzy_Confidence_pct',fz.confidence.toFixed(1)],
+    ['Fuzzy_Centroid',      fz.centroid.toFixed(4)],
+    ['Fuzzy_Safe_Strength', fz.safeStr.toFixed(4)],
+    ['Fuzzy_Warn_Strength', fz.warnStr.toFixed(4)],
+    ['Fuzzy_Unsafe_Strength',fz.unsafeStr.toFixed(4)],
+    ['Exported',            csvF(new Date().toLocaleString())], [],
     ['Timestamp','Epoch_ms','Node','Magnitude_m_s2','X_m_s2','Y_m_s2','Z_m_s2']
   ];
   allPts.forEach(d => rows.push([csvF(d.timestamp.toLocaleString()), d.timestamp.getTime(), csvF(d.nodeName), d.magnitude.toFixed(4), (d.x??'').toString(), (d.y??'').toString(), (d.z??'').toString()]));
@@ -1439,13 +1744,17 @@ function exportAllEventsCSV() {
     ['Structure', structure],
     ['Exported',  csvF(new Date().toLocaleString())],
     ['Total Events', unsafeEvents.length], [],
-    ['Event_ID','Start_Timestamp','End_Timestamp','Duration_s','Peak_Magnitude_m_s2','Buffer_s','Ground_Samples','Top_Samples','Structure']
+    ['Event_ID','Start_Timestamp','End_Timestamp','Duration_s','Peak_Magnitude_m_s2','Buffer_s','Ground_Samples','Top_Samples','Structure','Fuzzy_Status','Fuzzy_Confidence_pct','Fuzzy_Centroid']
   ];
-  unsafeEvents.forEach(ev => rows.push([
-    ev.seqNum||ev.id, csvF(ev.timestamp.toLocaleString()), csvF(ev.endTime.toLocaleString()),
-    ev.duration.toFixed(2), ev.maxMagnitude.toFixed(4), ev.bufferDuration||BUFFER_DURATION,
-    ev.node1Data.length, ev.node2Data.length, csvF(ev.structureName)
-  ]));
+  unsafeEvents.forEach(ev => {
+    const fz = ev.fuzzy || Fuzzy.assess(ev.duration, ev.maxMagnitude);
+    rows.push([
+      ev.seqNum||ev.id, csvF(ev.timestamp.toLocaleString()), csvF(ev.endTime.toLocaleString()),
+      ev.duration.toFixed(2), ev.maxMagnitude.toFixed(4), ev.bufferDuration||BUFFER_DURATION,
+      ev.node1Data.length, ev.node2Data.length, csvF(ev.structureName),
+      fz.status, fz.confidence.toFixed(1), fz.centroid.toFixed(4)
+    ]);
+  });
   rows.push([],['--- DETAILED READINGS ---'],['Event_ID','Timestamp','Epoch_ms','Node','Magnitude_m_s2','X_m_s2','Y_m_s2','Z_m_s2']);
   unsafeEvents.forEach(ev => {
     const all = [...ev.node1Data.map(d=>({...d,nn:'Ground Floor'})),...ev.node2Data.map(d=>({...d,nn:'Top Floor'}))].sort((a,b)=>a.timestamp-b.timestamp);
@@ -1458,6 +1767,474 @@ function exportAllEventsCSV() {
 // ══════════════════════════════════════════════════════════════
 //  INIT
 // ══════════════════════════════════════════════════════════════
+
+// ══════════════════════════════════════════════════════════════
+//  CUSTOM ZOOM / PAN ENGINE
+//  No external plugin — works reliably with categorical x-axis.
+//  Each chart gets:
+//    • Mouse wheel  → zoom in / out on x-axis
+//    • Mouse drag   → pan left / right
+//    • Touch pinch  → zoom (mobile)
+//    • Touch drag   → pan (mobile)
+//    • Double-click → reset zoom for that node
+// ══════════════════════════════════════════════════════════════
+
+const ZOOM_MIN_RANGE = 10;    // minimum 10-minute visible window
+const ZOOM_MAX_RANGE = 1440;  // full day
+
+// Return current visible min/max as label indices (0-1439)
+function getVisibleRange(chart) {
+  const labels = chart.data.labels;
+  if (!labels || labels.length === 0) return { min:0, max:1439 };
+  const xMin = chart.options.scales.x.min;
+  const xMax = chart.options.scales.x.max;
+  const min  = (xMin == null) ? 0    : Math.max(0,    labels.indexOf(xMin));
+  const max  = (xMax == null) ? 1439 : Math.min(1439, labels.indexOf(xMax));
+  return { min: min < 0 ? 0 : min, max: max < 0 ? 1439 : max };
+}
+
+// Apply a new visible range (by index) to a chart
+function setVisibleRange(chart, minIdx, maxIdx) {
+  const range = maxIdx - minIdx;
+  if (range < ZOOM_MIN_RANGE) return;
+  minIdx = Math.max(0,    Math.round(minIdx));
+  maxIdx = Math.min(1439, Math.round(maxIdx));
+  chart.options.scales.x.min = DAY_LABELS[minIdx];
+  chart.options.scales.x.max = DAY_LABELS[maxIdx];
+  chart.update('none');
+}
+
+// Zoom a chart around a focal point (0.0–1.0 relative to chart width)
+function zoomChart(chart, factor, focalRel) {
+  const { min, max } = getVisibleRange(chart);
+  const range  = max - min;
+  const focal  = min + range * focalRel;
+  const newRange = Math.min(ZOOM_MAX_RANGE, Math.max(ZOOM_MIN_RANGE, range * factor));
+  const newMin = focal - newRange * focalRel;
+  const newMax = focal + newRange * (1 - focalRel);
+  setVisibleRange(chart, newMin, newMax);
+}
+
+// Attach zoom + pan listeners to one canvas, operating on all 4 charts of a node
+function addZoomPan(canvases, nodeId) {
+  const getCharts = () => nodeCharts(nodeId);
+  const primary   = canvases[0];
+
+  // ── Mouse wheel zoom ─────────────────────────────────────────
+  // Mouse drag pan is replaced by the scroll slider below each chart.
+  canvases.forEach(canvas => {
+    canvas.addEventListener('wheel', e => {
+      e.preventDefault();
+      const factor   = e.deltaY > 0 ? 1.25 : 0.8;
+      const ch0      = getCharts().find(ch => ch && ch.chartArea);
+      const rect     = canvas.getBoundingClientRect();
+      const caLeft   = ch0?.chartArea?.left  ?? 0;
+      const caWidth  = ch0?.chartArea?.width ?? rect.width;
+      const focalRel = Math.max(0, Math.min(1,
+        (e.clientX - rect.left - caLeft) / caWidth
+      ));
+      getCharts().forEach(ch => { if (ch) zoomChart(ch, factor, focalRel); });
+      markUserZoomed(nodeId);
+      updateSlider(nodeId);
+    }, { passive: false });
+
+    // Double-click resets zoom and hides slider
+    canvas.addEventListener('dblclick', () => resetNodeZoom(nodeId));
+  });
+
+  // ── Touch: pinch-zoom only (pan via slider on desktop; touch drag on mobile) ──
+  let lastTouchDist = null;
+  let touchPanState = null;
+
+  primary.addEventListener('touchstart', e => {
+    if (e.touches.length === 2) {
+      lastTouchDist = Math.hypot(
+        e.touches[0].clientX - e.touches[1].clientX,
+        e.touches[0].clientY - e.touches[1].clientY
+      );
+    } else if (e.touches.length === 1) {
+      const ch0 = getCharts().find(ch => ch);
+      if (ch0) { const r = getVisibleRange(ch0); touchPanState = { startX: e.touches[0].clientX, origMin: r.min, origMax: r.max }; }
+    }
+  }, { passive: true });
+
+  primary.addEventListener('touchmove', e => {
+    e.preventDefault();
+    if (e.touches.length === 2 && lastTouchDist) {
+      const dist   = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
+      getCharts().forEach(ch => { if (ch) zoomChart(ch, lastTouchDist / dist, 0.5); });
+      lastTouchDist = dist;
+      markUserZoomed(nodeId);
+      updateSlider(nodeId);
+    } else if (e.touches.length === 1 && touchPanState) {
+      const ch0 = getCharts().find(ch => ch && ch.chartArea);
+      if (!ch0) return;
+      const chartW  = ch0.chartArea?.width ?? primary.clientWidth;
+      const origRange = touchPanState.origMax - touchPanState.origMin;
+      const dx      = e.touches[0].clientX - touchPanState.startX;
+      const shift   = Math.round(-dx / chartW * origRange);
+      let newMin    = touchPanState.origMin + shift;
+      let newMax    = touchPanState.origMax + shift;
+      if (newMin < 0)    { newMin = 0;    newMax = origRange; }
+      if (newMax > 1439) { newMax = 1439; newMin = 1439 - origRange; }
+      getCharts().forEach(ch => { if (ch) setVisibleRange(ch, newMin, newMax); });
+      markUserZoomed(nodeId);
+      updateSlider(nodeId);
+    }
+  }, { passive: false });
+
+  primary.addEventListener('touchend', () => { lastTouchDist = null; touchPanState = null; });
+}
+
+// Helper: all 4 charts for a given node
+function nodeCharts(nodeId) {
+  return nodeId === 'node1'
+    ? [node1Chart, node1ChartX, node1ChartY, node1ChartZ]
+    : [node2Chart, node2ChartX, node2ChartY, node2ChartZ];
+}
+
+// Mark that the user has zoomed this node and show the reset button
+function markUserZoomed(nodeId) {
+  autoZoom.stop(nodeId);    // stop auto-zoom animation for this node
+  const btn = document.getElementById(nodeId + 'ResetZoom');
+  if (btn) btn.classList.add('visible');
+}
+
+// Reset all 4 charts for a node to the full day view
+function resetNodeZoom(nodeId) {
+  nodeCharts(nodeId).forEach(ch => {
+    if (!ch) return;
+    ch.options.scales.x.min = undefined;
+    ch.options.scales.x.max = undefined;
+    ch.update('none');
+  });
+  const btn = document.getElementById(nodeId + 'ResetZoom');
+  if (btn) btn.classList.remove('visible');
+  // Hide slider when back to full day
+  updateSlider(nodeId);
+}
+
+
+// ══════════════════════════════════════════════════════════════
+//  SCROLL SLIDER
+//  Appears below charts when zoomed in.
+//  Dragging it pans the visible window left/right.
+// ══════════════════════════════════════════════════════════════
+
+// Convert minute index to HH:MM label
+function idxToHHMM(idx) { return DAY_LABELS[Math.max(0, Math.min(1439, Math.round(idx)))]; }
+
+// Sync slider state with the current chart viewport
+function updateSlider(nodeId) {
+  const charts = nodeCharts(nodeId);
+  const ch     = charts.find(c => c);
+  if (!ch) return;
+
+  const { min, max } = getVisibleRange(ch);
+  const visRange  = max - min;
+  const isFullDay = visRange >= 1438;   // within 1 slot of full day
+
+  const bar    = document.getElementById(nodeId + 'ScrollBar');
+  const slider = document.getElementById(nodeId + 'Slider');
+  const lblMin = document.getElementById(nodeId + 'SliderMin');
+  const lblMax = document.getElementById(nodeId + 'SliderMax');
+  if (!bar || !slider) return;
+
+  if (isFullDay) {
+    bar.classList.remove('visible');
+    return;
+  }
+
+  bar.classList.add('visible');
+  // Slider range: 0 → (1439 − visRange), value = current left edge
+  slider.max   = String(Math.max(0, 1439 - visRange));
+  slider.value = String(min);
+  if (lblMin) lblMin.textContent = idxToHHMM(min);
+  if (lblMax) lblMax.textContent = idxToHHMM(max);
+}
+
+// Called by the slider's oninput — pan charts to slider position
+function onSliderInput(nodeId, rawVal) {
+  const charts   = nodeCharts(nodeId);
+  const ch       = charts.find(c => c);
+  if (!ch) return;
+
+  const { min, max } = getVisibleRange(ch);
+  const visRange  = max - min;
+  const newMin    = parseInt(rawVal, 10);
+  const newMax    = Math.min(1439, newMin + visRange);
+
+  charts.forEach(ch => { if (ch) setVisibleRange(ch, newMin, newMax); });
+
+  // Update the time labels on the slider ends
+  const lblMin = document.getElementById(nodeId + 'SliderMin');
+  const lblMax = document.getElementById(nodeId + 'SliderMax');
+  if (lblMin) lblMin.textContent = idxToHHMM(newMin);
+  if (lblMax) lblMax.textContent = idxToHHMM(newMax);
+}
+
+// ══════════════════════════════════════════════════════════════
+//  AUTO-ZOOM ANIMATION
+//  Triggered once on first live data.
+//  Starts zoomed in to ±5 minutes around current time,
+//  then eases out to the full 00:00–23:59 day view over 4 s.
+//  Stops early if the user manually zooms.
+// ══════════════════════════════════════════════════════════════
+const autoZoom = {
+  triggered:   false,
+  animId:      null,
+  userStopped: { node1: false, node2: false },
+
+  trigger(nodeId) {
+    if (this.triggered) return;
+    this.triggered = true;
+    this._animate(['node1','node2']);   // animate both nodes together
+  },
+
+  _animate(nodeIds) {
+    const INITIAL_HALF = 5;      // ±5 min = 10-minute starting window
+    const DURATION_MS  = 4000;   // 4 seconds to reach full day
+    const startTime    = performance.now();
+    const nowIdx       = minuteIndex(Date.now());
+
+    // Clamp initial window so it doesn't go outside 00:00–23:59
+    const initMin = Math.max(0,    nowIdx - INITIAL_HALF);
+    const initMax = Math.min(1439, nowIdx + INITIAL_HALF);
+
+    // Set all charts to the narrow initial view
+    nodeIds.forEach(id => {
+      nodeCharts(id).forEach(ch => {
+        if (!ch) return;
+        ch.options.scales.x.min = DAY_LABELS[initMin];
+        ch.options.scales.x.max = DAY_LABELS[initMax];
+        ch.update('none');
+      });
+    });
+
+    const tick = (now) => {
+      const t     = Math.min(1, (now - startTime) / DURATION_MS);
+      // Cubic ease-out: fast start → gradual deceleration → smooth stop
+      const eased = 1 - Math.pow(1 - t, 3);
+
+      const halfRange = Math.round(INITIAL_HALF + (720 - INITIAL_HALF) * eased);
+      const visMin    = Math.max(0,    nowIdx - halfRange);
+      const visMax    = Math.min(1439, nowIdx + halfRange);
+
+      nodeIds.forEach(id => {
+        if (this.userStopped[id]) return;
+        nodeCharts(id).forEach(ch => {
+          if (!ch) return;
+          ch.options.scales.x.min = DAY_LABELS[visMin];
+          ch.options.scales.x.max = DAY_LABELS[visMax];
+          ch.update('none');
+        });
+      });
+
+      if (t < 1) {
+        this.animId = requestAnimationFrame(tick);
+      } else {
+        // Animation complete — release to full day
+        nodeIds.forEach(id => {
+          if (this.userStopped[id]) return;
+          nodeCharts(id).forEach(ch => {
+            if (!ch) return;
+            ch.options.scales.x.min = undefined;
+            ch.options.scales.x.max = undefined;
+            ch.update('none');
+          });
+        });
+        this.animId = null;
+      }
+    };
+
+    this.animId = requestAnimationFrame(tick);
+  },
+
+  // Call when user manually zooms so animation leaves that node alone
+  stop(nodeId) {
+    this.userStopped[nodeId] = true;
+  }
+};
+
+// Schedule midnight day-slot reset
+scheduleMidnightReset();
+
+// ══════════════════════════════════════════════════════════════
+//  TRAPEZOIDAL FUZZY LOGIC ENGINE  —  POST-EVENT ASSESSMENT
+//
+//  Inputs  : duration (seconds)  +  peak magnitude (m/s²)
+//  Output  : { status, confidence, centroid, membership, rules }
+//  Method  : Mamdani inference, singleton output, centroid defuzz
+//
+//  Adapted for single-node STA/LTA system:
+//    • Displacement/IDR not available (requires 2 nodes)
+//    • Peak magnitude replaces displacement as the 2nd input
+//    • Thresholds calibrated to THRESHOLD_UNSAFE = 11.5 m/s²
+// ══════════════════════════════════════════════════════════════
+const Fuzzy = (() => {
+
+  // ── Trapezoidal membership function ────────────────────────
+  function trapMF(x, a, b, c, d) {
+    if (x <= a || x >= d) return 0;
+    if (x >= b && x <= c) return 1;
+    if (x >  a && x <  b) return (x - a) / (b - a);
+    return (d - x) / (d - c);
+  }
+
+  // ── Duration membership functions (seconds) ─────────────────
+  //  SHORT  : plateau 0–5 s, ramps out by 15 s
+  //  MEDIUM : rises 5–15 s, full 15–30 s, ramps out 30–45 s
+  //  LONG   : rises 30–45 s, fully long ≥ 45 s (open right)
+  const durMF = {
+    SHORT:  d => trapMF(d,   0,   0,   5,  15),
+    MEDIUM: d => trapMF(d,   5,  15,  30,  45),
+    LONG:   d => trapMF(d,  30,  45, 9999, 9999)
+  };
+
+  // ── Magnitude membership functions (m/s²) ───────────────────
+  //  Calibrated to THRESHOLD_UNSAFE = 11.5 m/s²:
+  //    SMALL    : normal noise; plateau 0–3, ramps out by 7 m/s²
+  //    MODERATE : rises 3–7, full 7–9, ramps out 9–13 m/s²
+  //    LARGE    : rises 9–13, fully large ≥ 13 m/s² (open right)
+  const magMF = {
+    SMALL:    m => trapMF(m, 0,  0,   3,   7),
+    MODERATE: m => trapMF(m, 3,  7,   9,  13),
+    LARGE:    m => trapMF(m, 9, 13, 9999, 9999)
+  };
+
+  // ── Singleton output values ─────────────────────────────────
+  const OUT = { SAFE: 0.0, WARNING: 0.5, UNSAFE: 1.0 };
+
+  // ── 9 Mamdani rules ─────────────────────────────────────────
+  const RULES = [
+    ['SHORT',  'SMALL',    'SAFE',    'Short ∧ Small magnitude → SAFE'],
+    ['SHORT',  'MODERATE', 'WARNING', 'Short ∧ Moderate magnitude → WARNING'],
+    ['SHORT',  'LARGE',    'WARNING', 'Short ∧ Large magnitude → WARNING (brief exposure)'],
+    ['MEDIUM', 'SMALL',    'SAFE',    'Medium ∧ Small magnitude → SAFE'],
+    ['MEDIUM', 'MODERATE', 'WARNING', 'Medium ∧ Moderate magnitude → WARNING'],
+    ['MEDIUM', 'LARGE',    'UNSAFE',  'Medium ∧ Large magnitude → UNSAFE'],
+    ['LONG',   'SMALL',    'WARNING', 'Long ∧ Small magnitude → WARNING (fatigue risk)'],
+    ['LONG',   'MODERATE', 'UNSAFE',  'Long ∧ Moderate magnitude → UNSAFE'],
+    ['LONG',   'LARGE',    'UNSAFE',  'Long ∧ Large magnitude → UNSAFE'],
+  ];
+
+  // ── Main assessment function ────────────────────────────────
+  function assess(durationSec, peakMagMs2) {
+    // 1. Fuzzify inputs
+    const dMem = {
+      SHORT:  durMF.SHORT(durationSec),
+      MEDIUM: durMF.MEDIUM(durationSec),
+      LONG:   durMF.LONG(durationSec)
+    };
+    const mMem = {
+      SMALL:    magMF.SMALL(peakMagMs2),
+      MODERATE: magMF.MODERATE(peakMagMs2),
+      LARGE:    magMF.LARGE(peakMagMs2)
+    };
+
+    // 2. Fire rules (AND = min)
+    const ruleFirings = RULES.map(([dur, mag, out, label]) => ({
+      label, output: out,
+      strength: Math.min(dMem[dur], mMem[mag])
+    }));
+
+    // 3. Aggregate per output class (OR = max)
+    let safeStr = 0, warnStr = 0, unsafeStr = 0;
+    ruleFirings.forEach(r => {
+      if (r.output === 'SAFE')    safeStr   = Math.max(safeStr,   r.strength);
+      if (r.output === 'WARNING') warnStr   = Math.max(warnStr,   r.strength);
+      if (r.output === 'UNSAFE')  unsafeStr = Math.max(unsafeStr, r.strength);
+    });
+
+    // 4. Centroid defuzzification (singleton outputs)
+    const total    = safeStr + warnStr + unsafeStr;
+    const centroid = total > 1e-6
+      ? (safeStr*OUT.SAFE + warnStr*OUT.WARNING + unsafeStr*OUT.UNSAFE) / total : 0;
+
+    // 5. Classify: [0,0.35)=SAFE  [0.35,0.65)=WARNING  [0.65,1]=UNSAFE
+    const status = centroid < 0.35 ? 'SAFE' : centroid < 0.65 ? 'WARNING' : 'UNSAFE';
+
+    // 6. Confidence = fractional dominance of winning class
+    const dominant   = Math.max(safeStr, warnStr, unsafeStr);
+    const confidence = total > 1e-6
+      ? Math.round(dominant / total * 1000) / 10 : 100.0;
+
+    return {
+      status, confidence, centroid,
+      safeStr, warnStr, unsafeStr,
+      ruleFirings, dMem, mMem,
+      inputs: { durationSec, peakMagMs2 }
+    };
+  }
+
+  // ── Build HTML panel ─────────────────────────────────────────
+  function buildPanel(ev) {
+    const f = ev.fuzzy || assess(ev.duration, ev.maxMagnitude);
+    if (!f) return '';
+
+    const dClass = f.dMem.LONG   > f.dMem.MEDIUM && f.dMem.LONG   > f.dMem.SHORT    ? 'LONG'     : f.dMem.MEDIUM   >= f.dMem.SHORT    ? 'MEDIUM'   : 'SHORT';
+    const mClass = f.mMem.LARGE  > f.mMem.MODERATE && f.mMem.LARGE > f.mMem.SMALL    ? 'LARGE'   : f.mMem.MODERATE >= f.mMem.SMALL    ? 'MODERATE' : 'SMALL';
+
+    const pct = v => (v * 100).toFixed(1) + '%';
+    const bar = v => Math.round(v * 100);
+    const cPct = Math.round(f.centroid * 100);
+
+    const memBars = [
+      { cls:'safe',    label:'SAFE',    val:f.safeStr },
+      { cls:'warning', label:'WARNING', val:f.warnStr },
+      { cls:'unsafe',  label:'UNSAFE',  val:f.unsafeStr },
+    ].map(m => `<div class="fuzzy-membar-row">
+        <span class="fuzzy-membar-label">${m.label}</span>
+        <div class="fuzzy-membar-track"><div class="fuzzy-membar-fill ${m.cls}" style="width:${bar(m.val)}%"></div></div>
+        <span class="fuzzy-membar-value">${pct(m.val)}</span></div>`).join('');
+
+    const active   = f.ruleFirings.filter(r => r.strength > 0.01).sort((a,b) => b.strength - a.strength);
+    const ruleRows = active.map(r => `<div class="fuzzy-rule-row">
+        <div class="fuzzy-rule-strength"><div class="fuzzy-rule-fill ${r.output.toLowerCase()}" style="width:${bar(r.strength)}%"></div></div>
+        <span class="fuzzy-rule-desc">${r.label}</span>
+        <span class="fuzzy-rule-pct">${pct(r.strength)}</span></div>`).join('');
+
+    return `<div class="fuzzy-panel">
+      <div class="fuzzy-panel-title">🧠 Fuzzy Post-Event Assessment
+        <span style="font-weight:400;font-size:.62rem;color:var(--text-muted)">(Mamdani · Duration × Magnitude)</span>
+      </div>
+      <div class="fuzzy-verdict-row">
+        <div class="fuzzy-verdict ${f.status}">${f.status}</div>
+        <div class="fuzzy-conf-label">Confidence: <strong>${f.confidence}%</strong>
+          <span style="color:var(--text-muted);font-size:.65rem"> — dominant class share of total fuzzy mass</span>
+        </div>
+      </div>
+      <div class="fuzzy-inputs-row">
+        <div class="fuzzy-input-chip"><span>Duration: </span><strong>${f.inputs.durationSec.toFixed(1)} s</strong>
+          <span style="margin-left:.4rem;color:var(--text-muted)">→ ${dClass}
+          (S:${pct(f.dMem.SHORT)} M:${pct(f.dMem.MEDIUM)} L:${pct(f.dMem.LONG)})</span>
+        </div>
+        <div class="fuzzy-input-chip"><span>Peak Magnitude: </span><strong>${f.inputs.peakMagMs2.toFixed(3)} m/s²</strong>
+          <span style="margin-left:.4rem;color:var(--text-muted)">→ ${mClass}
+          (Sm:${pct(f.mMem.SMALL)} Mo:${pct(f.mMem.MODERATE)} Lg:${pct(f.mMem.LARGE)})</span>
+        </div>
+      </div>
+      <div class="fuzzy-membership-section">
+        <div class="fuzzy-membership-title">Output membership (max-OR aggregation)</div>
+        ${memBars}
+      </div>
+      <div class="fuzzy-centroid-row">
+        <span class="fuzzy-centroid-label">Defuzz centroid:</span>
+        <div class="fuzzy-centroid-track">
+          <div class="fuzzy-centroid-marker" style="left:${cPct}%"></div>
+        </div>
+        <span class="fuzzy-centroid-value">${f.centroid.toFixed(3)}</span>
+      </div>
+      <div class="fuzzy-rules-section">
+        <div class="fuzzy-rules-title">Active rules (strength &gt; 1%)</div>
+        ${ruleRows || '<span style="font-size:.65rem;color:var(--text-muted)">No rules fired.</span>'}
+      </div>
+    </div>`;
+  }
+
+  return { assess, buildPanel };
+})();
+
 window.addEventListener('load', connectMQTT);
 </script>
 </body>
