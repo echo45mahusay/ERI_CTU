@@ -673,8 +673,11 @@ body {
           <div class="stalta-track"><div class="stalta-fill" id="node1STALTABar"></div></div>
         </div>
         <div class="zoom-bar">
-          <span class="zoom-bar-label">🔍 Scroll to zoom · Slider to pan · Dbl-click to reset</span>
-          <button class="btn-reset-zoom" id="node1ResetZoom" onclick="resetNodeZoom('node1')">↺ Reset</button>
+          <span class="zoom-bar-label">🔍 Zoom</span>
+          <button class="span-btn" id="node1ZoomLive"  onclick="setNodeZoom('node1','live' )" >Live</button>
+          <button class="span-btn" id="node1Zoom30m"   onclick="setNodeZoom('node1','30m'  )" >30 min</button>
+          <button class="span-btn" id="node1Zoom1h"    onclick="setNodeZoom('node1','1h'   )" >1 hour</button>
+          <button class="span-btn active" id="node1ZoomDay" onclick="setNodeZoom('node1','day'  )" >Full Day</button>
         </div>
         <div class="chart-grid">
           <div><div class="chart-axis-label"><span class="dot" style="background:#00d4ff"></span>X-axis</div><div class="chart-wrapper"><canvas id="node1ChartX"></canvas></div></div>
@@ -704,11 +707,7 @@ body {
             <div class="chart-wrapper"><canvas id="node1ChartDisp"></canvas></div>
           </div>
         </div>
-        <div class="chart-scroll-bar" id="node1ScrollBar">
-          <span class="scroll-time-label" id="node1SliderMin">00:00</span>
-          <input type="range" class="chart-slider" id="node1Slider" min="0" max="1439" value="0" step="1" oninput="onSliderInput('node1', this.value)">
-          <span class="scroll-time-label" id="node1SliderMax">23:59</span>
-        </div>
+
       </div>
 
       <!-- Node 2 — Top Floor -->
@@ -739,8 +738,11 @@ body {
           <div class="stalta-track"><div class="stalta-fill" id="node2STALTABar"></div></div>
         </div>
         <div class="zoom-bar">
-          <span class="zoom-bar-label">🔍 Scroll to zoom · Slider to pan · Dbl-click to reset</span>
-          <button class="btn-reset-zoom" id="node2ResetZoom" onclick="resetNodeZoom('node2')">↺ Reset</button>
+          <span class="zoom-bar-label">🔍 Zoom</span>
+          <button class="span-btn" id="node2ZoomLive"  onclick="setNodeZoom('node2','live' )" >Live</button>
+          <button class="span-btn" id="node2Zoom30m"   onclick="setNodeZoom('node2','30m'  )" >30 min</button>
+          <button class="span-btn" id="node2Zoom1h"    onclick="setNodeZoom('node2','1h'   )" >1 hour</button>
+          <button class="span-btn active" id="node2ZoomDay" onclick="setNodeZoom('node2','day'  )" >Full Day</button>
         </div>
         <div class="chart-grid">
           <div><div class="chart-axis-label"><span class="dot" style="background:#00d4ff"></span>X-axis</div><div class="chart-wrapper"><canvas id="node2ChartX"></canvas></div></div>
@@ -770,11 +772,7 @@ body {
             <div class="chart-wrapper"><canvas id="node2ChartDisp"></canvas></div>
           </div>
         </div>
-        <div class="chart-scroll-bar" id="node2ScrollBar">
-          <span class="scroll-time-label" id="node2SliderMin">00:00</span>
-          <input type="range" class="chart-slider" id="node2Slider" min="0" max="1439" value="0" step="1" oninput="onSliderInput('node2', this.value)">
-          <span class="scroll-time-label" id="node2SliderMax">23:59</span>
-        </div>
+
       </div>
 
     </div><!-- /.nodes-grid -->
@@ -1053,8 +1051,6 @@ requestAnimationFrame(()=>{
     [node1Chart,node1ChartX,node1ChartY,node1ChartZ,node1ChartVel,node1ChartDisp,
      node2Chart,node2ChartX,node2ChartY,node2ChartZ,node2ChartVel,node2ChartDisp,storyDispChart]
     .forEach(ch=>ch&&ch.resize());
-    addZoomPan(['node1ChartX','node1ChartY','node1ChartZ','node1Chart','node1ChartVel','node1ChartDisp'].map(id=>document.getElementById(id)),'node1');
-    addZoomPan(['node2ChartX','node2ChartY','node2ChartZ','node2Chart','node2ChartVel','node2ChartDisp'].map(id=>document.getElementById(id)),'node2');
   },250);
 });
 
@@ -1141,6 +1137,7 @@ function updateSpanCharts(){
     const chDisp=isN1?node1ChartDisp:node2ChartDisp;
     if(chDisp){chDisp.data.labels=labels;chDisp.data.datasets[0].data=dx;chDisp.data.datasets[1].data=dy;chDisp.data.datasets[2].data=dz;chDisp.data.datasets[3].data=disp;chDisp.update('none');}
   });
+  reapplyZooms(); // re-enforce active zoom window after every data refresh
 }
 function getSpanData(nodeId){
   const node=nodes[nodeId],now=Date.now(),EMPTY={labels:[],mag:[],ax:[],ay:[],az:[],vx:[],vy:[],vz:[],vel:[],dx:[],dy:[],dz:[],disp:[]};
@@ -1676,40 +1673,110 @@ function stopDemo(){
 // ══════════════════════════════════════════════════════════════
 //  ZOOM / PAN ENGINE
 // ══════════════════════════════════════════════════════════════
-const ZOOM_MIN_RANGE=10,ZOOM_MAX_RANGE=1440;
-function getVisibleRange(chart){const labels=chart.data.labels;if(!labels||labels.length===0)return{min:0,max:1439};const xMin=chart.options.scales.x.min,xMax=chart.options.scales.x.max;const min=(xMin==null)?0:Math.max(0,labels.indexOf(xMin)),max=(xMax==null)?1439:Math.min(1439,labels.indexOf(xMax));return{min:min<0?0:min,max:max<0?1439:max};}
-function setVisibleRange(chart,minIdx,maxIdx){const range=maxIdx-minIdx;if(range<ZOOM_MIN_RANGE)return;minIdx=Math.max(0,Math.round(minIdx));maxIdx=Math.min(1439,Math.round(maxIdx));chart.options.scales.x.min=DAY_LABELS[minIdx];chart.options.scales.x.max=DAY_LABELS[maxIdx];chart.update('none');}
-function zoomChart(chart,factor,focalRel){const{min,max}=getVisibleRange(chart),range=max-min,focal=min+range*focalRel,newRange=Math.min(ZOOM_MAX_RANGE,Math.max(ZOOM_MIN_RANGE,range*factor)),newMin=focal-newRange*focalRel,newMax=focal+newRange*(1-focalRel);setVisibleRange(chart,newMin,newMax);}
-function addZoomPan(canvases,nodeId){
-  const getCharts=()=>nodeCharts(nodeId),primary=canvases[0];
-  canvases.forEach(canvas=>{
-    canvas.addEventListener('wheel',e=>{e.preventDefault();const factor=e.deltaY>0?1.25:0.8;const ch0=getCharts().find(ch=>ch&&ch.chartArea);const rect=canvas.getBoundingClientRect();const caLeft=ch0?.chartArea?.left??0,caWidth=ch0?.chartArea?.width??rect.width;const focalRel=Math.max(0,Math.min(1,(e.clientX-rect.left-caLeft)/caWidth));getCharts().forEach(ch=>{if(ch)zoomChart(ch,factor,focalRel);});markUserZoomed(nodeId);updateSlider(nodeId);},{passive:false});
-    canvas.addEventListener('dblclick',()=>resetNodeZoom(nodeId));
-  });
-  let lastTouchDist=null,touchPanState=null;
-  primary.addEventListener('touchstart',e=>{if(e.touches.length===2){lastTouchDist=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY);}else if(e.touches.length===1){const ch0=getCharts().find(ch=>ch);if(ch0){const r=getVisibleRange(ch0);touchPanState={startX:e.touches[0].clientX,origMin:r.min,origMax:r.max};}}},{passive:true});
-  primary.addEventListener('touchmove',e=>{e.preventDefault();if(e.touches.length===2&&lastTouchDist){const dist=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY);getCharts().forEach(ch=>{if(ch)zoomChart(ch,lastTouchDist/dist,0.5);});lastTouchDist=dist;markUserZoomed(nodeId);updateSlider(nodeId);}else if(e.touches.length===1&&touchPanState){const ch0=getCharts().find(ch=>ch&&ch.chartArea);if(!ch0)return;const chartW=ch0.chartArea?.width??primary.clientWidth,origRange=touchPanState.origMax-touchPanState.origMin,dx=e.touches[0].clientX-touchPanState.startX,shift=Math.round(-dx/chartW*origRange);let newMin=touchPanState.origMin+shift,newMax=touchPanState.origMax+shift;if(newMin<0){newMin=0;newMax=origRange;}if(newMax>1439){newMax=1439;newMin=1439-origRange;}getCharts().forEach(ch=>{if(ch)setVisibleRange(ch,newMin,newMax);});markUserZoomed(nodeId);updateSlider(nodeId);}},{passive:false});
-  primary.addEventListener('touchend',()=>{lastTouchDist=null;touchPanState=null;});
-}
-function nodeCharts(nodeId){return nodeId==='node1'?[node1Chart,node1ChartX,node1ChartY,node1ChartZ,node1ChartVel,node1ChartDisp]:[node2Chart,node2ChartX,node2ChartY,node2ChartZ,node2ChartVel,node2ChartDisp];}
-function markUserZoomed(nodeId){autoZoom.stop(nodeId);const btn=document.getElementById(nodeId+'ResetZoom');if(btn)btn.classList.add('visible');}
-function resetNodeZoom(nodeId){nodeCharts(nodeId).forEach(ch=>{if(!ch)return;ch.options.scales.x.min=undefined;ch.options.scales.x.max=undefined;ch.update('none');});const btn=document.getElementById(nodeId+'ResetZoom');if(btn)btn.classList.remove('visible');updateSlider(nodeId);}
-function idxToHHMM(idx){return DAY_LABELS[Math.max(0,Math.min(1439,Math.round(idx)))];}
-function updateSlider(nodeId){const charts=nodeCharts(nodeId),ch=charts.find(c=>c);if(!ch)return;const{min,max}=getVisibleRange(ch),visRange=max-min,isFullDay=visRange>=1438;const bar=document.getElementById(nodeId+'ScrollBar'),slider=document.getElementById(nodeId+'Slider'),lblMin=document.getElementById(nodeId+'SliderMin'),lblMax=document.getElementById(nodeId+'SliderMax');if(!bar||!slider)return;if(isFullDay){bar.classList.remove('visible');return;}bar.classList.add('visible');slider.max=String(Math.max(0,1439-visRange));slider.value=String(min);if(lblMin)lblMin.textContent=idxToHHMM(min);if(lblMax)lblMax.textContent=idxToHHMM(max);}
-function onSliderInput(nodeId,rawVal){const charts=nodeCharts(nodeId),ch=charts.find(c=>c);if(!ch)return;const{min,max}=getVisibleRange(ch),visRange=max-min,newMin=parseInt(rawVal,10),newMax=Math.min(1439,newMin+visRange);charts.forEach(ch=>{if(ch)setVisibleRange(ch,newMin,newMax);});const lblMin=document.getElementById(nodeId+'SliderMin'),lblMax=document.getElementById(nodeId+'SliderMax');if(lblMin)lblMin.textContent=idxToHHMM(newMin);if(lblMax)lblMax.textContent=idxToHHMM(newMax);}
+// ══════════════════════════════════════════════════════════════
+//  ZOOM ENGINE — button-driven, no panning, applied to all graphs
+//  Modes: live (last 5 min) | 30m | 1h | day (full 24H)
+//  Applied simultaneously to ALL charts in both nodes.
+// ══════════════════════════════════════════════════════════════
 
-const autoZoom={triggered:false,animId:null,userStopped:{node1:false,node2:false},
-  trigger(nodeId){if(this.triggered)return;this.triggered=true;this._animate(['node1','node2']);},
-  _animate(nodeIds){
-    const INITIAL_HALF=5,DURATION_MS=4000,startTime=performance.now(),nowIdx=minuteIndex(Date.now());
-    const initMin=Math.max(0,nowIdx-INITIAL_HALF),initMax=Math.min(1439,nowIdx+INITIAL_HALF);
-    nodeIds.forEach(id=>{nodeCharts(id).forEach(ch=>{if(!ch)return;ch.options.scales.x.min=DAY_LABELS[initMin];ch.options.scales.x.max=DAY_LABELS[initMax];ch.update('none');});});
-    const tick=(now)=>{const t=Math.min(1,(now-startTime)/DURATION_MS),eased=1-Math.pow(1-t,3),halfRange=Math.round(INITIAL_HALF+(720-INITIAL_HALF)*eased),visMin=Math.max(0,nowIdx-halfRange),visMax=Math.min(1439,nowIdx+halfRange);
-      nodeIds.forEach(id=>{if(this.userStopped[id])return;nodeCharts(id).forEach(ch=>{if(!ch)return;ch.options.scales.x.min=DAY_LABELS[visMin];ch.options.scales.x.max=DAY_LABELS[visMax];ch.update('none');});});
-      if(t<1){this.animId=requestAnimationFrame(tick);}else{nodeIds.forEach(id=>{if(this.userStopped[id])return;nodeCharts(id).forEach(ch=>{if(!ch)return;ch.options.scales.x.min=undefined;ch.options.scales.x.max=undefined;ch.update('none');});});this.animId=null;}};
-    this.animId=requestAnimationFrame(tick);
+const nodeZoomState = { node1: 'day', node2: 'day' };
+
+function nodeCharts(nodeId){
+  return nodeId==='node1'
+    ? [node1Chart,node1ChartX,node1ChartY,node1ChartZ,node1ChartVel,node1ChartDisp]
+    : [node2Chart,node2ChartX,node2ChartY,node2ChartZ,node2ChartVel,node2ChartDisp];
+}
+
+// Apply a zoom window to all charts of a node by setting x-axis min/max.
+// 'live' tracks the current minute; others are fixed windows.
+function applyZoom(nodeId, mode) {
+  const charts = nodeCharts(nodeId);
+  const nowIdx = minuteIndex(Date.now());
+
+  let minIdx, maxIdx;
+  if (mode === 'day') {
+    // Full day — remove limits so Chart.js auto-ranges
+    charts.forEach(ch => {
+      if (!ch) return;
+      ch.options.scales.x.min = undefined;
+      ch.options.scales.x.max = undefined;
+      ch.update('none');
+    });
+    return;
+  } else if (mode === 'live') {
+    // Last 5 minutes centred on now
+    minIdx = Math.max(0, nowIdx - 5);
+    maxIdx = Math.min(1439, nowIdx + 1);
+  } else if (mode === '30m') {
+    minIdx = Math.max(0, nowIdx - 30);
+    maxIdx = Math.min(1439, nowIdx + 1);
+  } else if (mode === '1h') {
+    minIdx = Math.max(0, nowIdx - 60);
+    maxIdx = Math.min(1439, nowIdx + 1);
+  }
+
+  charts.forEach(ch => {
+    if (!ch) return;
+    ch.options.scales.x.min = DAY_LABELS[minIdx];
+    ch.options.scales.x.max = DAY_LABELS[maxIdx];
+    ch.update('none');
+  });
+}
+
+// Called by zoom buttons — updates button states and applies window.
+// 'live' mode also starts a refresh interval so the window tracks time.
+const liveIntervals = { node1: null, node2: null };
+
+function setNodeZoom(nodeId, mode) {
+  nodeZoomState[nodeId] = mode;
+
+  // Update button active states
+  ['live','30m','1h','day'].forEach(m => {
+    const suffix = m === '30m' ? '30m' : m === '1h' ? '1h' : m === 'live' ? 'Live' : 'Day';
+    const id = `${nodeId}Zoom${m === '30m' ? '30m' : m === '1h' ? '1h' : m === 'live' ? 'Live' : 'Day'}`;
+    const btn = document.getElementById(id);
+    if (btn) btn.classList.toggle('active', m === mode);
+  });
+
+  // Clear any previous live-tracking interval
+  if (liveIntervals[nodeId]) {
+    clearInterval(liveIntervals[nodeId]);
+    liveIntervals[nodeId] = null;
+  }
+
+  applyZoom(nodeId, mode);
+
+  // For live/30m/1h modes, re-apply every 30s so the window slides forward
+  if (mode !== 'day') {
+    liveIntervals[nodeId] = setInterval(() => applyZoom(nodeId, mode), 30000);
+  }
+}
+
+// Re-apply current zoom after any span chart update (keeps window consistent)
+function reapplyZooms() {
+  ['node1','node2'].forEach(nodeId => {
+    const mode = nodeZoomState[nodeId];
+    if (mode !== 'day') applyZoom(nodeId, mode);
+  });
+}
+
+// autoZoom: on first data arrival, jump both nodes to 'live' view,
+// then switch to full-day after 4 s so the user sees context.
+const autoZoom = {
+  triggered: false,
+  trigger(nodeId) {
+    if (this.triggered) return;
+    this.triggered = true;
+    // Instantly show live view
+    setNodeZoom('node1', 'live');
+    setNodeZoom('node2', 'live');
+    // After 4 s expand to full day
+    setTimeout(() => {
+      setNodeZoom('node1', 'day');
+      setNodeZoom('node2', 'day');
+    }, 4000);
   },
-  stop(nodeId){this.userStopped[nodeId]=true;}
+  stop(nodeId) {} // no-op — kept so existing callers don't break
 };
 
 // ══════════════════════════════════════════════════════════════
