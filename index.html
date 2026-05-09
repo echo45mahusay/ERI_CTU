@@ -1207,8 +1207,7 @@ function onMessage(topic,payload){
     const data=JSON.parse(payStr);
     if(type==='batch'){
       const batchIn={nodeId,odr:data.odr||100,x:data.x,y:data.y,z:data.z,t0_ms:data.t0!=null?data.t0/1000:Date.now()};
-      const result=SignalProcessor.processBatch(batchIn);
-      if(result) updateVelDispCharts(nodeId);
+      SignalProcessor.processBatch(batchIn); // chart refresh is throttled inside SignalProcessor
       return;
     }else if(type==='acceleration'){updateAccelData(nodeId,data);}
     else if(type==='stalta'){updateSTALTA(nodeId,data);}
@@ -1231,16 +1230,7 @@ function onClose(){
 // ══════════════════════════════════════════════════════════════
 //  LIVE DATA UPDATES
 // ══════════════════════════════════════════════════════════════
-function updateVelDispCharts(nodeId){
-  const r=SignalProcessor.getRing(nodeId),isN1=nodeId==='node1';
-  const chVel=isN1?node1ChartVel:node2ChartVel;
-  if(chVel){chVel.data.labels=r.t;chVel.data.datasets[0].data=r.vx;chVel.data.datasets[1].data=r.vy;chVel.data.datasets[2].data=r.vz;chVel.data.datasets[3].data=r.vmag;chVel.update('none');}
-  const chDisp=isN1?node1ChartDisp:node2ChartDisp;
-  if(chDisp){chDisp.data.labels=r.t;chDisp.data.datasets[0].data=r.dx;chDisp.data.datasets[1].data=r.dy;chDisp.data.datasets[2].data=r.dz;chDisp.data.datasets[3].data=r.dmag;chDisp.update('none');}
-  // Update story displacement live ring
-  const n1d=nodes.node1.currentDispMm, n2d=nodes.node2.currentDispMm;
-  updateStoryRing(n1d, n2d);
-}
+// updateVelDispCharts removed — SignalProcessor now throttles and flushes internally via scheduleRefresh()
 
 function updateStoryRing(n1d, n2d){
   const label=new Date().toLocaleTimeString();
@@ -1783,27 +1773,53 @@ const Fuzzy=(()=>{
 
 // ══════════════════════════════════════════════════════════════
 //  SIGNAL PROCESSOR — 3-Stage Butterworth HPF + Trapz Integration
+//  Fixed-window ring + 10fps throttled chart refresh to fix flicker
 // ══════════════════════════════════════════════════════════════
 const SignalProcessor=(()=>{
   function butterCoeffs(fc,fs){const K=Math.tan(Math.PI*fc/fs),Q=Math.SQRT2/2,norm=1/(1+K/Q+K*K);return{b0:norm,b1:-2*norm,b2:norm,a1:2*(K*K-1)*norm,a2:(1-K/Q+K*K)*norm};}
-  function applyBiquad(samples,cf,state){const{b0,b1,b2,a1,a2}=cf;for(let i=0;i<samples.length;i++){const w=samples[i]-a1*state.w1-a2*state.w2;samples[i]=b0*w+b1*state.w1+b2*state.w2;state.w2=state.w1;state.w1=w;}return samples;}
-  function trapzIntegrate(samples,dt,state){let prev=state.prev;for(let i=0;i<samples.length;i++){const cur=samples[i];state.running+=(prev+cur)*0.5*dt;prev=cur;samples[i]=state.running;}state.prev=prev;return samples;}
+  function applyBiquad(samples,cf,st){const{b0,b1,b2,a1,a2}=cf;for(let i=0;i<samples.length;i++){const w=samples[i]-a1*st.w1-a2*st.w2;samples[i]=b0*w+b1*st.w1+b2*st.w2;st.w2=st.w1;st.w1=w;}return samples;}
+  function trapzIntegrate(samples,dt,st){let prev=st.prev;for(let i=0;i<samples.length;i++){const cur=samples[i];st.running+=(prev+cur)*0.5*dt;prev=cur;samples[i]=st.running;}st.prev=prev;return samples;}
   function makeAxisState(){return{hpfAccState:{w1:0,w2:0},hpfVelState:{w1:0,w2:0},hpfDispState:{w1:0,w2:0},trapzVelState:{prev:0,running:0},trapzDispState:{prev:0,running:0}};}
   const state={node1:{x:makeAxisState(),y:makeAxisState(),z:makeAxisState(),cf:null},node2:{x:makeAxisState(),y:makeAxisState(),z:makeAxisState(),cf:null}};
-  const RING_LEN=300;
-  const ring={node1:{t:[],vx:[],vy:[],vz:[],vmag:[],dx:[],dy:[],dz:[],dmag:[]},node2:{t:[],vx:[],vy:[],vz:[],vmag:[],dx:[],dy:[],dz:[],dmag:[]}};
+  // Fixed-length circular buffer — Chart.js sees constant-size arrays → no axis rescaling → no flicker
+  const RING_LEN=150;
+  function makeRing(){const n=()=>Array(RING_LEN).fill(null);return{t:Array(RING_LEN).fill(''),vx:n(),vy:n(),vz:n(),vmag:n(),dx:n(),dy:n(),dz:n(),dmag:n(),head:0,filled:0};}
+  const ring={node1:makeRing(),node2:makeRing()};
   function pushRing(nodeId,label,vx,vy,vz,dx,dy,dz){
-    const r=ring[nodeId],vmag=Math.sqrt(vx*vx+vy*vy+vz*vz),dmag=Math.sqrt(dx*dx+dy*dy+dz*dz);
-    ['t','vx','vy','vz','vmag','dx','dy','dz','dmag'].forEach(k=>{if(r[k].length>=RING_LEN)r[k].shift();});
-    r.t.push(label);r.vx.push(vx);r.vy.push(vy);r.vz.push(vz);r.vmag.push(vmag);r.dx.push(dx);r.dy.push(dy);r.dz.push(dz);r.dmag.push(dmag);
+    const r=ring[nodeId],h=r.head;
+    const vmag=Math.sqrt(vx*vx+vy*vy+vz*vz),dmag=Math.sqrt(dx*dx+dy*dy+dz*dz);
+    r.t[h]=label;r.vx[h]=vx;r.vy[h]=vy;r.vz[h]=vz;r.vmag[h]=vmag;r.dx[h]=dx;r.dy[h]=dy;r.dz[h]=dz;r.dmag[h]=dmag;
+    r.head=(h+1)%RING_LEN;if(r.filled<RING_LEN)r.filled++;
+  }
+  function getView(nodeId){
+    const r=ring[nodeId];
+    if(r.filled<RING_LEN){const e=r.head;const sl=k=>r[k].slice(0,e);return{t:r.t.slice(0,e),vx:sl('vx'),vy:sl('vy'),vz:sl('vz'),vmag:sl('vmag'),dx:sl('dx'),dy:sl('dy'),dz:sl('dz'),dmag:sl('dmag')};}
+    const rot=k=>[...r[k].slice(r.head),...r[k].slice(0,r.head)];
+    return{t:rot('t'),vx:rot('vx'),vy:rot('vy'),vz:rot('vz'),vmag:rot('vmag'),dx:rot('dx'),dy:rot('dy'),dz:rot('dz'),dmag:rot('dmag')};
+  }
+  // Throttle: one rAF per node max — prevents burst redraws from MQTT
+  const rafPending={node1:false,node2:false};
+  function scheduleRefresh(nodeId){
+    if(rafPending[nodeId])return;
+    rafPending[nodeId]=true;
+    requestAnimationFrame(()=>{rafPending[nodeId]=false;_flush(nodeId);});
+  }
+  function _flush(nodeId){
+    const v=getView(nodeId),isN1=nodeId==='node1';
+    const chVel=isN1?node1ChartVel:node2ChartVel,chDisp=isN1?node1ChartDisp:node2ChartDisp;
+    if(chVel){chVel.data.labels=v.t;chVel.data.datasets[0].data=v.vx;chVel.data.datasets[1].data=v.vy;chVel.data.datasets[2].data=v.vz;chVel.data.datasets[3].data=v.vmag;chVel.update('none');}
+    if(chDisp){chDisp.data.labels=v.t;chDisp.data.datasets[0].data=v.dx;chDisp.data.datasets[1].data=v.dy;chDisp.data.datasets[2].data=v.dz;chDisp.data.datasets[3].data=v.dmag;chDisp.update('none');}
+    const lastDmag=ring[nodeId].dmag[(ring[nodeId].head-1+RING_LEN)%RING_LEN]||0;
+    nodes[nodeId].currentDispMm=lastDmag;
+    updateStoryRing(nodes.node1.currentDispMm,nodes.node2.currentDispMm);
   }
   function processBatch(batch){
     const{nodeId,odr}=batch,ns=state[nodeId];if(!ns)return;
-    if(!ns.cf){ns.cf=butterCoeffs(0.5,odr||100);}
+    if(!ns.cf)ns.cf=butterCoeffs(0.5,odr||100);
     const cf=ns.cf,dt=1/(odr||100),n=batch.x.length,results={};
     ['x','y','z'].forEach(axis=>{
       const acc=batch[axis].slice(),st=ns[axis];
-      const mean=acc.reduce((s,v)=>s+v,0)/acc.length;for(let i=0;i<n;i++)acc[i]-=mean;
+      const mean=acc.reduce((s,v)=>s+v,0)/n;for(let i=0;i<n;i++)acc[i]-=mean;
       applyBiquad(acc,cf,st.hpfAccState);
       const vel=acc.slice();trapzIntegrate(vel,dt,st.trapzVelState);applyBiquad(vel,cf,st.hpfVelState);
       const disp=vel.slice();trapzIntegrate(disp,dt,st.trapzDispState);applyBiquad(disp,cf,st.hpfDispState);
@@ -1812,11 +1828,12 @@ const SignalProcessor=(()=>{
     const lastIdx=n-1,label=new Date(batch.t0_ms+lastIdx*dt*1000).toLocaleTimeString();
     pushRing(nodeId,label,results.x.vel[lastIdx],results.y.vel[lastIdx],results.z.vel[lastIdx],results.x.disp[lastIdx],results.y.disp[lastIdx],results.z.disp[lastIdx]);
     const peakDisp=Math.max(...Array.from({length:n},(_,i)=>Math.sqrt(results.x.disp[i]**2+results.y.disp[i]**2+results.z.disp[i]**2)));
-    if(nodeId==='node1'||nodeId==='node2'){nodes[nodeId].peakDispMmSinceEvent=Math.max(nodes[nodeId].peakDispMmSinceEvent||0,peakDisp);nodes[nodeId].currentDispMm=ring[nodeId].dmag[ring[nodeId].dmag.length-1]||0;}
-    return{results,ring:ring[nodeId]};
+    nodes[nodeId].peakDispMmSinceEvent=Math.max(nodes[nodeId].peakDispMmSinceEvent||0,peakDisp);
+    scheduleRefresh(nodeId);
+    return{results};
   }
-  function getRing(nodeId){return ring[nodeId];}
-  function resetNode(nodeId){const ns=state[nodeId];if(!ns)return;ns.cf=null;['x','y','z'].forEach(axis=>{ns[axis]=makeAxisState();});const r=ring[nodeId];Object.keys(r).forEach(k=>{r[k]=[];});}
+  function getRing(nodeId){return getView(nodeId);}
+  function resetNode(nodeId){const ns=state[nodeId];if(!ns)return;ns.cf=null;['x','y','z'].forEach(axis=>{ns[axis]=makeAxisState();});ring[nodeId]=makeRing();rafPending[nodeId]=false;}
   return{processBatch,getRing,resetNode};
 })();
 
