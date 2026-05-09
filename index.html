@@ -268,21 +268,12 @@ body {
 .drift-badge.danger  { background: rgba(255,68,85,.12); color: var(--accent-red); border: 1px solid rgba(255,68,85,.3); }
 
 /* ── Time span selector ────────────────────────────── */
-.span-selector {
-  display: flex; align-items: center; gap: .5rem; flex-wrap: wrap;
-  margin-bottom: 1.25rem; padding: .7rem 1rem;
-  background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 10px;
-}
-.span-label { font-size: .7rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: .06em; margin-right: .25rem; }
-.span-btn {
-  padding: .35rem .9rem;
-  background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: 6px;
-  color: var(--text-secondary); font-family: var(--mono); font-size: .75rem; font-weight: 600;
-  cursor: pointer; transition: all .2s;
-}
-.span-btn:hover  { color: var(--text-primary); border-color: var(--accent-cyan); }
-.span-btn.active { background: rgba(0,212,255,.12); border-color: var(--accent-cyan); color: var(--accent-cyan); }
-.span-info { margin-left: auto; font-size: .68rem; color: var(--text-muted); }
+
+
+
+
+
+
 
 /* ── Node grid ─────────────────────────────────────── */
 .nodes-grid { display: grid; grid-template-columns: 1fr; gap: 1.5rem; margin-bottom: 1.5rem; }
@@ -359,7 +350,7 @@ body {
 .event-window-label  { font-size: .68rem; color: rgba(255,68,85,.7); }
 .event-chart-legend  { display: flex; gap: .875rem; font-size: .68rem; color: var(--text-muted); margin-bottom: .4rem; align-items: center; }
 .legend-dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 3px; vertical-align: middle; }
-.event-chart-container { height: 170px; position: relative; }
+.event-chart-container { height: 280px; position: relative; }
 .history-data-grid  { display: grid; grid-template-columns: repeat(2,1fr); gap: .875rem; font-size: .78rem; color: var(--text-secondary); margin-bottom: .5rem; }
 .history-data-title { font-size: .825rem; color: var(--text-muted); margin-bottom: .625rem; font-weight: 600; }
 
@@ -409,9 +400,31 @@ body {
 .btn-reset-zoom.visible { display: block; }
 .btn-reset-zoom:hover { background: rgba(255,196,64,.16); }
 .zoom-bar {
-  display: flex; align-items: center; gap: .6rem; padding: .35rem .7rem; margin-bottom: .5rem;
-  background: rgba(255,255,255,.015); border: 1px solid var(--border-color); border-radius: 6px;
-  font-size: .62rem; color: var(--text-muted);
+  display: flex; align-items: center; gap: .5rem; padding: .4rem .875rem; margin-bottom: .6rem;
+  background: var(--bg-card2); border: 1px solid var(--border-color);
+  border-radius: 8px; font-size: .7rem; color: var(--text-muted);
+}
+
+/* ── Zoom mode toggle buttons ──────────────────────────── */
+.zoom-mode-btn {
+  padding: .3rem .9rem;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  color: var(--text-muted);
+  font-family: var(--mono); font-size: .72rem; font-weight: 600;
+  cursor: pointer; transition: all .2s; letter-spacing: .02em;
+}
+.zoom-mode-btn:hover {
+  color: var(--text-primary);
+  border-color: rgba(0,212,255,.4);
+  background: rgba(0,212,255,.06);
+}
+.zoom-mode-btn.active {
+  background: rgba(0,212,255,.14);
+  border-color: var(--accent-cyan);
+  color: var(--accent-cyan);
+  box-shadow: 0 0 10px rgba(0,212,255,.15);
 }
 .chart-scroll-bar { display: none; align-items: center; gap: .5rem; padding: .35rem .2rem .1rem; margin-top: .2rem; }
 .chart-scroll-bar.visible { display: flex; }
@@ -586,7 +599,7 @@ body {
         <div class="config-item">
           <label class="config-label">Unsafe Threshold (m/s²)</label>
           <input type="number" class="config-input" id="thresholdUnsafe" value="11.5" step="0.1" min="9.0" max="30.0">
-          <p class="config-help">Acceleration magnitude above this value triggers UNSAFE status</p>
+          <p class="config-help">Resultant acceleration above this value triggers UNSAFE status</p>
         </div>
         <div class="config-item">
           <label class="config-label">STA/LTA Alert Ratio</label>
@@ -632,16 +645,6 @@ body {
       </div>
     </div>
 
-    <!-- Time span selector -->
-    <div class="span-selector">
-      <span class="span-label">📅 View</span>
-      <button class="span-btn active" id="span24H" onclick="setTimeSpan('24H')">24H</button>
-      <button class="span-btn" id="span7D"  onclick="setTimeSpan('7D')">7 Days</button>
-      <button class="span-btn" id="span30D" onclick="setTimeSpan('30D')">30 Days</button>
-      <button class="span-btn" id="span1Y"  onclick="setTimeSpan('1Y')">1 Year</button>
-      <span class="span-info" id="spanInfo">Showing last 24 hours · Real-time</span>
-    </div>
-
     <!-- Node Cards -->
     <div class="nodes-grid">
 
@@ -674,14 +677,14 @@ body {
         </div>
         <div class="zoom-bar">
           <span class="zoom-bar-label">🔍 Zoom</span>
-          <button class="span-btn" id="node1ZoomLive" onclick="setNodeZoom('node1','live')">Live</button>
-          <button class="span-btn active" id="node1ZoomDay" onclick="setNodeZoom('node1','day')">Full Day</button>
+          <button class="zoom-mode-btn" id="node1ZoomLive" onclick="setNodeZoom('node1','live')">Live</button>
+          <button class="zoom-mode-btn active" id="node1ZoomDay" onclick="setNodeZoom('node1','day')">All Data</button>
         </div>
         <div class="chart-grid">
           <div><div class="chart-axis-label"><span class="dot" style="background:#00d4ff"></span>X-axis</div><div class="chart-wrapper"><canvas id="node1ChartX"></canvas></div></div>
           <div><div class="chart-axis-label"><span class="dot" style="background:#00e5a0"></span>Y-axis</div><div class="chart-wrapper"><canvas id="node1ChartY"></canvas></div></div>
           <div><div class="chart-axis-label"><span class="dot" style="background:#b06aff"></span>Z-axis (gravity corrected)</div><div class="chart-wrapper"><canvas id="node1ChartZ"></canvas></div></div>
-          <div><div class="chart-axis-label"><span class="dot" style="background:#ffc940"></span>Magnitude</div><div class="chart-wrapper"><canvas id="node1Chart"></canvas></div></div>
+          <div><div class="chart-axis-label"><span class="dot" style="background:#ffc940"></span>Resultant</div><div class="chart-wrapper"><canvas id="node1Chart"></canvas></div></div>
         </div>
         <div class="chart-row-2">
           <div>
@@ -737,14 +740,14 @@ body {
         </div>
         <div class="zoom-bar">
           <span class="zoom-bar-label">🔍 Zoom</span>
-          <button class="span-btn" id="node2ZoomLive" onclick="setNodeZoom('node2','live')">Live</button>
-          <button class="span-btn active" id="node2ZoomDay" onclick="setNodeZoom('node2','day')">Full Day</button>
+          <button class="zoom-mode-btn" id="node2ZoomLive" onclick="setNodeZoom('node2','live')">Live</button>
+          <button class="zoom-mode-btn active" id="node2ZoomDay" onclick="setNodeZoom('node2','day')">All Data</button>
         </div>
         <div class="chart-grid">
           <div><div class="chart-axis-label"><span class="dot" style="background:#00d4ff"></span>X-axis</div><div class="chart-wrapper"><canvas id="node2ChartX"></canvas></div></div>
           <div><div class="chart-axis-label"><span class="dot" style="background:#00e5a0"></span>Y-axis</div><div class="chart-wrapper"><canvas id="node2ChartY"></canvas></div></div>
           <div><div class="chart-axis-label"><span class="dot" style="background:#b06aff"></span>Z-axis (gravity corrected)</div><div class="chart-wrapper"><canvas id="node2ChartZ"></canvas></div></div>
-          <div><div class="chart-axis-label"><span class="dot" style="background:#ffc940"></span>Magnitude</div><div class="chart-wrapper"><canvas id="node2Chart"></canvas></div></div>
+          <div><div class="chart-axis-label"><span class="dot" style="background:#ffc940"></span>Resultant</div><div class="chart-wrapper"><canvas id="node2Chart"></canvas></div></div>
         </div>
         <div class="chart-row-2">
           <div>
@@ -894,47 +897,82 @@ function toast(msg, type = 'info', duration = 3000) {
 }
 
 // ══════════════════════════════════════════════════════════════
-//  24-HOUR FIXED DAY GRID
+//  SHARED CHART RING — all 6 charts per node use ONE label array
+//  This guarantees time-axis synchronisation between acceleration,
+//  velocity, and displacement charts.
+//  Labels: "HH:MM:SS" from live MQTT accel messages (1 Hz).
+//  Vel/Disp: stored from most-recent batch, appended at 1 Hz.
 // ══════════════════════════════════════════════════════════════
-const DAY_LABELS = (function() {
-  const out = [];
-  for (let h=0;h<24;h++) for (let m=0;m<60;m++)
-    out.push(String(h).padStart(2,'0')+':'+String(m).padStart(2,'0'));
-  return out;
-})();
+const CHART_RING_LEN = 300;   // ~5 min at 1 Hz
 
-function emptyDay() {
-  const n = () => Array(1440).fill(null);
-  return { mag:n(),ax:n(),ay:n(),az:n(),vx:n(),vy:n(),vz:n(),vel:n(),dx:n(),dy:n(),dz:n(),disp:n() };
+function makeChartRing() {
+  return { t:[], ax:[], ay:[], az:[], mag:[],
+           vx:[], vy:[], vz:[], vmag:[],
+           dx:[], dy:[], dz:[], dmag:[] };
 }
-const daySlots = { node1: emptyDay(), node2: emptyDay() };
+const chartRing = { node1: makeChartRing(), node2: makeChartRing() };
 
-function minuteIndex(epochMs) { const d=new Date(epochMs); return d.getHours()*60+d.getMinutes(); }
+function fmtTime(epochMs) {
+  const d = new Date(epochMs);
+  return String(d.getHours()).padStart(2,'0') + ':' +
+         String(d.getMinutes()).padStart(2,'0') + ':' +
+         String(d.getSeconds()).padStart(2,'0');
+}
 
-function writeDaySlot(nodeId,epochMs,mag,ax,ay,az,vx,vy,vz,vel,dx,dy,dz,disp){
-  const idx=minuteIndex(epochMs), s=daySlots[nodeId];
-  if(s.mag[idx]===null||mag>s.mag[idx]){
-    s.mag[idx]=mag; s.ax[idx]=ax; s.ay[idx]=ay; s.az[idx]=az;
-    if(vx!=null){s.vx[idx]=vx;s.vy[idx]=vy;s.vz[idx]=vz;s.vel[idx]=vel;}
-    if(dx!=null){s.dx[idx]=dx*1000;s.dy[idx]=dy*1000;s.dz[idx]=dz*1000;s.disp[idx]=disp*1000;}
+function pushChartRing(nodeId, epochMs, ax, ay, az, mag) {
+  const node = nodes[nodeId];
+  const r    = chartRing[nodeId];
+  const lv   = node.latestVD || {};   // latest vel/disp from most recent batch
+  r.t.push(fmtTime(epochMs));
+  r.ax.push(ax); r.ay.push(ay); r.az.push(az); r.mag.push(mag);
+  r.vx.push(lv.vx ?? null); r.vy.push(lv.vy ?? null);
+  r.vz.push(lv.vz ?? null); r.vmag.push(lv.vmag ?? null);
+  r.dx.push(lv.dx ?? null); r.dy.push(lv.dy ?? null);
+  r.dz.push(lv.dz ?? null); r.dmag.push(lv.dmag ?? null);
+  if (r.t.length > CHART_RING_LEN) Object.keys(r).forEach(k => r[k].shift());
+}
+
+function getChartView(nodeId) {
+  const r = chartRing[nodeId];
+  const zoom = nodeZoomState[nodeId] || 'day';
+  const n = zoom === 'live' ? Math.min(60, r.t.length) : r.t.length;
+  const s = r.t.length - n;
+  const sl = k => r[k].slice(s);
+  return { t:sl('t'), ax:sl('ax'), ay:sl('ay'), az:sl('az'), mag:sl('mag'),
+           vx:sl('vx'), vy:sl('vy'), vz:sl('vz'), vmag:sl('vmag'),
+           dx:sl('dx'), dy:sl('dy'), dz:sl('dz'), dmag:sl('dmag') };
+}
+
+function updateAllCharts(nodeId) {
+  if (!node1Chart) return;   // charts not initialised yet
+  const v = getChartView(nodeId);
+  const isN1 = nodeId === 'node1';
+  const chX   = isN1 ? node1ChartX   : node2ChartX;
+  const chY   = isN1 ? node1ChartY   : node2ChartY;
+  const chZ   = isN1 ? node1ChartZ   : node2ChartZ;
+  const chMag = isN1 ? node1Chart    : node2Chart;
+  const chVel = isN1 ? node1ChartVel : node2ChartVel;
+  const chDis = isN1 ? node1ChartDisp: node2ChartDisp;
+  [chX, chY, chZ, chMag, chVel, chDis].forEach(ch => { if(ch) ch.data.labels = v.t; });
+  chX.data.datasets[0].data = v.ax;   chX.update('none');
+  chY.data.datasets[0].data = v.ay;   chY.update('none');
+  chZ.data.datasets[0].data = v.az;   chZ.update('none');
+  chMag.data.datasets[0].data = v.mag; chMag.update('none');
+  if (chVel) {
+    chVel.data.datasets[0].data = v.vx;   chVel.data.datasets[1].data = v.vy;
+    chVel.data.datasets[2].data = v.vz;   chVel.data.datasets[3].data = v.vmag;
+    chVel.update('none');
   }
-}
-
-function resetDaySlots(){
-  ['node1','node2'].forEach(id=>{daySlots[id]=emptyDay();});
-  updateSpanCharts(); scheduleMidnightReset();
-}
-function scheduleMidnightReset(){
-  const now=new Date(),midnight=new Date(now);
-  midnight.setHours(24,0,0,0);
-  setTimeout(resetDaySlots,midnight-now);
-}
-function seedDaySlotsFromHistory(nodeId){
-  const today=new Date();today.setHours(0,0,0,0);
-  nodes[nodeId].livePoints.forEach(p=>{
-    const [epochMs,mag,ax,ay,az]=p;
-    if(new Date(epochMs)>=today) writeDaySlot(nodeId,epochMs,mag,ax??0,ay??0,az??0);
-  });
+  if (chDis) {
+    chDis.data.datasets[0].data = v.dx;   chDis.data.datasets[1].data = v.dy;
+    chDis.data.datasets[2].data = v.dz;   chDis.data.datasets[3].data = v.dmag;
+    chDis.update('none');
+  }
+  // Update story displacement chart when this node has displacement data
+  // Only call when displacement is non-zero (batch has been processed)
+  if (storyDispChart && nodes.node1.currentDispMm + nodes.node2.currentDispMm > 0) {
+    updateStoryRing(nodes.node1.currentDispMm || 0, nodes.node2.currentDispMm || 0);
+  }
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -944,7 +982,6 @@ let mqttClient=null, reconnectTimer=null, reconnectDelay=2000;
 let historyReceived={events:false}, snapshotTimer=null;
 let THRESHOLD_UNSAFE=11.5, THRESHOLD_STALTA=3.0, BUFFER_DURATION=5;
 let DISP_LIMIT_MM=12.5;
-let currentTimeSpan='24H';
 
 const nodes = {
   node1:{id:'node1',name:'Ground Floor',online:false,currentMagnitude:0,maxMagnitude:0,staLtaRatio:0,x:0,y:0,z:0,dataBuffer:[],livePoints:[],sessionPoints:[],raw:{},hourly:{},daily:{},peakDispMmSinceEvent:0,currentDispMm:0},
@@ -982,7 +1019,7 @@ const commonOpts={
   scales:{
     x:{ticks:{color:'#525d6e',maxTicksLimit:8,font:{size:9}},grid:{color:'rgba(255,255,255,.03)'}},
     y:{ticks:{color:'#525d6e',font:{size:10}},grid:{color:'rgba(255,255,255,.03)'},
-       title:{display:true,text:'Magnitude (m/s²)',color:'#525d6e',font:{size:10}}}
+       title:{display:true,text:'Resultant (m/s²)',color:'#525d6e',font:{size:10}}}
   }
 };
 
@@ -1001,7 +1038,7 @@ function mkMultiChart(canvasId,datasets,yTitle){
 
 function mkChart(canvasId,color,fillColor,label,yTitle){
   const opts=JSON.parse(JSON.stringify(commonOpts));
-  opts.scales.y.title.text=yTitle||'Magnitude (m/s²)';
+  opts.scales.y.title.text=yTitle||'Resultant (m/s²)';
   return new Chart(document.getElementById(canvasId),{
     type:'line',
     data:{labels:[],datasets:[{label,data:[],borderColor:color,backgroundColor:fillColor,borderWidth:1.5,tension:.3,fill:true,pointRadius:0,spanGaps:true}]},
@@ -1016,11 +1053,11 @@ requestAnimationFrame(()=>{
   node1ChartX=mkChart('node1ChartX','#00d4ff','rgba(0,212,255,.1)','Ground X','Acceleration (m/s²)');
   node1ChartY=mkChart('node1ChartY','#00e5a0','rgba(0,229,160,.1)','Ground Y','Acceleration (m/s²)');
   node1ChartZ=mkChart('node1ChartZ','#b06aff','rgba(176,106,255,.1)','Ground Z','Acceleration (m/s²)');
-  node1Chart =mkChart('node1Chart', '#ffc940','rgba(255,201,64,.09)','Ground Magnitude');
+  node1Chart =mkChart('node1Chart', '#ffc940','rgba(255,201,64,.09)','Ground Resultant','Resultant (m/s²)');
   node2ChartX=mkChart('node2ChartX','#00d4ff','rgba(0,212,255,.1)','Top X','Acceleration (m/s²)');
   node2ChartY=mkChart('node2ChartY','#00e5a0','rgba(0,229,160,.1)','Top Y','Acceleration (m/s²)');
   node2ChartZ=mkChart('node2ChartZ','#b06aff','rgba(176,106,255,.1)','Top Z','Acceleration (m/s²)');
-  node2Chart =mkChart('node2Chart', '#ffc940','rgba(255,201,64,.09)','Top Magnitude');
+  node2Chart =mkChart('node2Chart', '#ffc940','rgba(255,201,64,.09)','Top Resultant','Resultant (m/s²)');
 
   const VEL_DS=[{label:'Vx',color:'#00d4ff'},{label:'Vy',color:'#00e5a0'},{label:'Vz',color:'#b06aff'},{label:'|V|',color:'#ff8c42'}];
   const DISP_DS=[{label:'Dx',color:'#00d4ff'},{label:'Dy',color:'#00e5a0'},{label:'Dz',color:'#b06aff'},{label:'|D|',color:'#ff8c42'}];
@@ -1100,8 +1137,7 @@ function restoreEvents(payload){
   catch(e){console.warn('[persist] events restore failed:',e);}
   historyReceived.events=true;
   updateHistoryUI();updateStoryEventTable();
-  ['node1','node2'].forEach(nodeId=>restoreSnapshot(nodeId,JSON.stringify({raw:[],hourly:{},daily:{},maxMagnitude:0})));
-  updateSpanCharts();setSyncBadge('synced','History: Loaded ✓');
+  setSyncBadge('synced','History: Loaded ✓');
 }
 function serializeEvent(ev){return{...ev,timestamp:ev.timestamp.toISOString(),endTime:ev.endTime.toISOString(),node1Data:ev.node1Data.map(d=>({...d,timestamp:d.timestamp.toISOString()})),node2Data:ev.node2Data.map(d=>({...d,timestamp:d.timestamp.toISOString()}))};}
 function hydrateEvent(raw){return{...raw,timestamp:new Date(raw.timestamp),endTime:new Date(raw.endTime),node1Data:(raw.node1Data||[]).map(d=>({...d,timestamp:new Date(d.timestamp)})),node2Data:(raw.node2Data||[]).map(d=>({...d,timestamp:new Date(d.timestamp)}))}}
@@ -1109,49 +1145,7 @@ function hydrateEvent(raw){return{...raw,timestamp:new Date(raw.timestamp),endTi
 // ══════════════════════════════════════════════════════════════
 //  TIME SPAN
 // ══════════════════════════════════════════════════════════════
-const spanLabels={'24H':'Today (00:00–23:59) · Resets at midnight','7D':'Last 7 days · Hourly peak','30D':'Last 30 days · 4-hour peak','1Y':'Last 365 days · Daily peak'};
-function setTimeSpan(span){
-  currentTimeSpan=span;
-  document.querySelectorAll('.span-btn').forEach(b=>b.classList.remove('active'));
-  document.getElementById('span'+span).classList.add('active');
-  document.getElementById('spanInfo').textContent=spanLabels[span];
-  updateSpanCharts();
-}
-function updateSpanCharts(){
-  if(!node1Chart||!node2Chart) return;
-  ['node1','node2'].forEach(nodeId=>{
-    const{labels,mag,ax,ay,az,vx,vy,vz,vel,dx,dy,dz,disp}=getSpanData(nodeId);
-    const isN1=nodeId==='node1';
-    const chMag=isN1?node1Chart:node2Chart;
-    chMag.data.labels=labels;chMag.data.datasets[0].data=mag;chMag.update('none');
-    const[chX,chY,chZ]=isN1?[node1ChartX,node1ChartY,node1ChartZ]:[node2ChartX,node2ChartY,node2ChartZ];
-    chX.data.labels=labels;chX.data.datasets[0].data=ax;chX.update('none');
-    chY.data.labels=labels;chY.data.datasets[0].data=ay;chY.update('none');
-    chZ.data.labels=labels;chZ.data.datasets[0].data=az;chZ.update('none');
-    const chVel=isN1?node1ChartVel:node2ChartVel;
-    if(chVel){chVel.data.labels=labels;chVel.data.datasets[0].data=vx;chVel.data.datasets[1].data=vy;chVel.data.datasets[2].data=vz;chVel.data.datasets[3].data=vel;chVel.update('none');}
-    const chDisp=isN1?node1ChartDisp:node2ChartDisp;
-    if(chDisp){chDisp.data.labels=labels;chDisp.data.datasets[0].data=dx;chDisp.data.datasets[1].data=dy;chDisp.data.datasets[2].data=dz;chDisp.data.datasets[3].data=disp;chDisp.update('none');}
-  });
-  reapplyZooms();
-}
-function getSpanData(nodeId){
-  const node=nodes[nodeId],now=Date.now(),EMPTY={labels:[],mag:[],ax:[],ay:[],az:[],vx:[],vy:[],vz:[],vel:[],dx:[],dy:[],dz:[],disp:[]};
-  if(currentTimeSpan==='24H'){
-    const s=daySlots[nodeId];let firstIdx=1439,lastIdx=0,hasData=false;
-    for(let i=0;i<1440;i++){if(s.mag[i]!==null){if(!hasData){firstIdx=i;hasData=true;}lastIdx=i;}}
-    if(!hasData)return EMPTY;
-    const nowIdx=minuteIndex(Date.now()),fromIdx=Math.max(0,firstIdx),toIdx=Math.min(1439,Math.max(lastIdx,nowIdx)+5);
-    const sl=arr=>arr.slice(fromIdx,toIdx+1);
-    return{labels:DAY_LABELS.slice(fromIdx,toIdx+1),mag:sl(s.mag),ax:sl(s.ax),ay:sl(s.ay),az:sl(s.az),vx:sl(s.vx),vy:sl(s.vy),vz:sl(s.vz),vel:sl(s.vel),dx:sl(s.dx),dy:sl(s.dy),dz:sl(s.dz),disp:sl(s.disp)};
-  }
-  const NA=[];
-  if(currentTimeSpan==='7D'){const cut=now-7*86400000;const pts=Object.entries(node.hourly).map(([k,v])=>[Number(k),v]).filter(([k])=>k>=cut).sort((a,b)=>a[0]-b[0]);return{labels:pts.map(([k])=>fmtBucket(k,'hourly')),mag:pts.map(([,v])=>v),ax:NA,ay:NA,az:NA,vx:NA,vy:NA,vz:NA,vel:NA,dx:NA,dy:NA,dz:NA,disp:NA};}
-  if(currentTimeSpan==='30D'){const cut=now-30*86400000;const bk={};Object.entries(node.hourly).map(([k,v])=>[Number(k),v]).filter(([k])=>k>=cut).forEach(([k,v])=>{const b=Math.floor(k/14400000)*14400000;if(bk[b]===undefined||v>bk[b])bk[b]=v;});const pts=Object.entries(bk).map(([k,v])=>[Number(k),v]).sort((a,b)=>a[0]-b[0]);return{labels:pts.map(([k])=>fmtBucket(k,'hourly')),mag:pts.map(([,v])=>v),ax:NA,ay:NA,az:NA,vx:NA,vy:NA,vz:NA,vel:NA,dx:NA,dy:NA,dz:NA,disp:NA};}
-  if(currentTimeSpan==='1Y'){const cut=now-365*86400000;const pts=Object.entries(node.daily).map(([k,v])=>[Number(k),v]).filter(([k])=>k>=cut).sort((a,b)=>a[0]-b[0]);return{labels:pts.map(([k])=>fmtBucket(k,'daily')),mag:pts.map(([,v])=>v),ax:NA,ay:NA,az:NA,vx:NA,vy:NA,vz:NA,vel:NA,dx:NA,dy:NA,dz:NA,disp:NA};}
-  return EMPTY;
-}
-function fmtBucket(ts,type){const d=new Date(ts),mm=String(d.getMonth()+1).padStart(2,'0'),dd=String(d.getDate()).padStart(2,'0'),hh=String(d.getHours()).padStart(2,'0');return type==='daily'?`${mm}/${dd}`:`${mm}/${dd} ${hh}:00`;}
+// Span time functions removed — chartRing + updateAllCharts() replaces them.
 
 // ══════════════════════════════════════════════════════════════
 //  MQTT
@@ -1223,7 +1217,6 @@ function onClose(){
 // ══════════════════════════════════════════════════════════════
 //  LIVE DATA UPDATES
 // ══════════════════════════════════════════════════════════════
-// updateVelDispCharts removed — SignalProcessor now throttles and flushes internally via scheduleRefresh()
 
 function updateStoryRing(n1d, n2d){
   const label=new Date().toLocaleTimeString();
@@ -1266,19 +1259,26 @@ function updateAccelData(nodeId,data){
   document.getElementById(`${nodeId}X`).textContent=node.x.toFixed(3)+' m/s²';
   document.getElementById(`${nodeId}Y`).textContent=node.y.toFixed(3)+' m/s²';
   document.getElementById(`${nodeId}Z`).textContent=node.z.toFixed(3)+' m/s²';
-  node.dataBuffer.push({timestamp:ts,magnitude:mag,x:node.x,y:node.y,z:node.z,vx,vy,vz,velMag,dx,dy,dz,dispMag});
+  // Displacement from /acceleration payload is always null (firmware doesn't send it).
+  // Use latestVD from the batch pipeline instead — updated at ~2 Hz so it's always fresh.
+  const _lv = node.latestVD || {};
+  node.dataBuffer.push({
+    timestamp: ts, magnitude: mag,
+    x: node.x, y: node.y, z: node.z,
+    vx: _lv.vx ?? null, vy: _lv.vy ?? null, vz: _lv.vz ?? null, velMag: _lv.vmag ?? null,
+    dx: _lv.dx ?? null, dy: _lv.dy ?? null, dz: _lv.dz ?? null,
+    dispMag: _lv.dmag != null ? _lv.dmag / 1000 : null  // dmag is mm → store as metres for consistency
+  });
   if(node.dataBuffer.length>600)node.dataBuffer.shift();
   node.livePoints.push([epochMs,mag,node.x,node.y,node.z]);
   const cut24=epochMs-86400000;
   while(node.livePoints.length>0&&node.livePoints[0][0]<cut24)node.livePoints.shift();
   node.sessionPoints.push([epochMs,mag,node.x,node.y,node.z,vx,vy,vz,velMag,dx,dy,dz,dispMag]);
   while(node.sessionPoints.length>0&&node.sessionPoints[0][0]<cut24)node.sessionPoints.shift();
-  writeDaySlot(nodeId,epochMs,mag,node.x,node.y,node.z,vx,vy,vz,velMag,dx,dy,dz,dispMag);
+  // Push to unified chart ring — all 6 charts (accel + vel + disp) share same labels
+  pushChartRing(nodeId, epochMs, node.x, node.y, node.z, mag);
   autoZoom.trigger(nodeId);
-  const tenSecKey=String(Math.floor(epochMs/10000)*10000);if(node.raw[tenSecKey]===undefined||mag>node.raw[tenSecKey])node.raw[tenSecKey]=mag;
-  const hourKey=String(Math.floor(epochMs/3600000)*3600000);if(node.hourly[hourKey]===undefined||mag>node.hourly[hourKey])node.hourly[hourKey]=mag;
-  const d=new Date(epochMs),dayKey=String(new Date(d.getFullYear(),d.getMonth(),d.getDate()).getTime());if(node.daily[dayKey]===undefined||mag>node.daily[dayKey])node.daily[dayKey]=mag;
-  if(currentTimeSpan==='24H') updateSpanCharts();
+  updateAllCharts(nodeId);
   scheduleSnapshot();checkStructureStatus();
 }
 
@@ -1354,7 +1354,8 @@ function endUnsafeEvent(endTime){
   updateHistoryUI();updateStoryEventTable();publishSnapshots();
   updateFuzzyHero(event.fuzzy);
   const fzLabel=event.fuzzy?` 🧠 ${event.fuzzy.status} (${event.fuzzy.confidence.toFixed(0)}%)` :'';
-  toast(`⚠️ Event #${event.seqNum} — ${eventMax.toFixed(2)} m/s²${fzLabel}`,'warn',7000);
+  const dispLabel=peakDispMm>0?`${peakDispMm.toFixed(3)} mm`:'—';
+  toast(`⚠️ Event #${event.seqNum} — Peak Disp: ${dispLabel} · ${event.duration.toFixed(1)}s${fzLabel}`,'warn',7000);
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -1391,12 +1392,14 @@ function clearAllData(){
   ['node1','node2'].forEach(id=>{Object.assign(nodes[id],{raw:{},hourly:{},daily:{},livePoints:[],sessionPoints:[],maxMagnitude:0,dataBuffer:[],currentDispMm:0});document.getElementById(`${id}Max`).textContent='—';});
   Object.values(eventCharts).forEach(c=>c.destroy());eventCharts={};
   if(mqttClient&&mqttClient.connected){['node1','node2'].forEach(id=>{mqttClient.publish(`eri/persist/${id}/raw`,'{}',{retain:true,qos:1});});mqttClient.publish(TOPIC_PERSIST_EVENTS,'[]',{retain:true,qos:1});}
-  daySlots.node1=emptyDay();daySlots.node2=emptyDay();
+  chartRing.node1 = makeChartRing();
+  chartRing.node2 = makeChartRing();
+  nodes.node1.latestVD = {}; nodes.node2.latestVD = {};
   SignalProcessor.resetNode('node1');SignalProcessor.resetNode('node2');
   nodes.node1.peakDispMmSinceEvent=0;nodes.node2.peakDispMmSinceEvent=0;
   storyRing.t.length=0;storyRing.n1.length=0;storyRing.n2.length=0;storyRing.lim.length=0;
   if(storyDispChart){storyDispChart.data.labels=[];storyDispChart.data.datasets.forEach(d=>d.data=[]);storyDispChart.update();}
-  updateHistoryUI();updateSpanCharts();updateStoryEventTable();
+  updateHistoryUI();updateStoryEventTable();
   toast('All data cleared','info');
 }
 
@@ -1411,10 +1414,12 @@ function updateHistoryUI(){
   if(unsafeEvents.length===0){list.innerHTML=`<div style="text-align:center;padding:3rem;color:var(--text-muted)"><div style="font-size:3rem;margin-bottom:1rem">📊</div><div>No unsafe events recorded yet</div><div style="font-size:.825rem;margin-top:.5rem">Events appear here when threshold is exceeded</div></div>`;return;}
   const html=unsafeEvents.map(ev=>{
     const buf=ev.bufferDuration||BUFFER_DURATION,cid=`eventChart_${ev.id}`;
-    const n1Min=ev.node1Data.length?Math.min(...ev.node1Data.map(d=>d.magnitude)).toFixed(2):'N/A';
-    const n1Max=ev.node1Data.length?Math.max(...ev.node1Data.map(d=>d.magnitude)).toFixed(2):'N/A';
-    const n2Min=ev.node2Data.length?Math.min(...ev.node2Data.map(d=>d.magnitude)).toFixed(2):'N/A';
-    const n2Max=ev.node2Data.length?Math.max(...ev.node2Data.map(d=>d.magnitude)).toFixed(2):'N/A';
+    const n1DispVals=ev.node1Data.map(d=>d.dispMag!=null?d.dispMag*1000:null).filter(v=>v!==null);
+    const n2DispVals=ev.node2Data.map(d=>d.dispMag!=null?d.dispMag*1000:null).filter(v=>v!==null);
+    const n1DispPeak=n1DispVals.length?Math.max(...n1DispVals).toFixed(3):'N/A';
+    const n2DispPeak=n2DispVals.length?Math.max(...n2DispVals).toFixed(3):'N/A';
+    const n1DispMin =n1DispVals.length?Math.min(...n1DispVals).toFixed(3):'N/A';
+    const n2DispMin =n2DispVals.length?Math.min(...n2DispVals).toFixed(3):'N/A';
     const seqLabel=ev.seqNum||ev.id;
     if(!ev.fuzzy) ev.fuzzy=Fuzzy.assess(ev.duration,ev.peakDisplacementMm||ev.maxMagnitude);
     const fzStatus=ev.fuzzy?ev.fuzzy.status:'—';
@@ -1424,36 +1429,50 @@ function updateHistoryUI(){
     const fzText=fzStatus==='SAFE'?'var(--accent-green)':fzStatus==='UNSAFE'?'var(--accent-red)':'var(--accent-yellow)';
     const peakDispStr=ev.peakDisplacementMm?ev.peakDisplacementMm.toFixed(3)+' mm':'N/A';
     return `<div class="history-item">
+      <!-- ── Header row: timestamp + badges ── -->
       <div class="history-item-header">
         <div class="history-timestamp">${ev.timestamp.toLocaleString()}</div>
         <div style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap">
-          <span style="font-size:.7rem;padding:.18rem .6rem;border-radius:5px;background:${fzColor};border:1px solid ${fzBorder};color:${fzText};font-weight:700">🧠 ${fzStatus} ${fzConf}</span>
+          <span style="font-size:.7rem;padding:.25rem .75rem;border-radius:5px;background:${fzColor};border:1px solid ${fzBorder};color:${fzText};font-weight:700;letter-spacing:.04em">🧠 ${fzStatus} ${fzConf}</span>
           <button class="btn-export btn-export-sm" onclick="exportEventCSV(${ev.id})">⬇ CSV</button>
           <div class="history-badge">UNSAFE #${seqLabel}</div>
         </div>
       </div>
+      <!-- ── Stat strip ── -->
       <div class="history-details">
         <div class="history-detail"><div class="history-detail-label">Duration</div><div class="history-detail-value">${ev.duration.toFixed(1)} s</div></div>
-        <div class="history-detail"><div class="history-detail-label">Peak Magnitude</div><div class="history-detail-value">${ev.maxMagnitude.toFixed(2)} m/s²</div></div>
-        <div class="history-detail"><div class="history-detail-label">Peak Displacement</div><div class="history-detail-value">${peakDispStr}</div></div>
+        <div class="history-detail"><div class="history-detail-label">Peak Displacement (Overall)</div><div class="history-detail-value">${peakDispStr}</div></div>
+        <div class="history-detail"><div class="history-detail-label">🏢 GF Peak Disp</div><div class="history-detail-value">${n1DispPeak} mm</div></div>
+        <div class="history-detail"><div class="history-detail-label">🏗️ TF Peak Disp</div><div class="history-detail-value">${n2DispPeak} mm</div></div>
         <div class="history-detail"><div class="history-detail-label">Total Samples</div><div class="history-detail-value">${ev.node1Data.length+ev.node2Data.length}</div></div>
       </div>
+      <!-- ── Chart section ── -->
       <div class="history-data-buffer">
-        <div class="history-data-title">📊 Captured Data (±${buf}s buffer)</div>
-        <div class="history-data-grid">
-          <div><strong>Ground Floor:</strong> ${ev.node1Data.length} samples · ${n1Min}–${n1Max} m/s²</div>
-          <div><strong>Top Floor:</strong> ${ev.node2Data.length} samples · ${n2Min}–${n2Max} m/s²</div>
+        <!-- sample counts -->
+        <div class="history-data-grid" style="margin-bottom:.75rem">
+          <div style="display:flex;align-items:center;gap:.4rem">
+            <span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#00d4ff;flex-shrink:0"></span>
+            <span><strong>Ground Floor:</strong> ${ev.node1Data.length} samples · ${n1DispMin}–${n1DispPeak} mm disp</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:.4rem">
+            <span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#b06aff;flex-shrink:0"></span>
+            <span><strong>Top Floor:</strong> ${ev.node2Data.length} samples · ${n2DispMin}–${n2DispPeak} mm disp</span>
+          </div>
         </div>
+        <!-- chart title row -->
         <div class="event-chart-header">
-          <span class="event-chart-title">⏱ Acceleration Timeline (±${buf}s window)</span>
-          <span class="event-window-label">🔴 Shaded = Unsafe duration</span>
+          <span class="event-chart-title">📐 Displacement Timeline (±${buf}s window)</span>
+          <span class="event-window-label">🔴 Shaded = Event duration</span>
         </div>
+        <!-- inline legend -->
         <div class="event-chart-legend">
-          <span><span class="legend-dot" style="background:#00d4ff"></span>Ground Floor</span>
-          <span><span class="legend-dot" style="background:#b06aff"></span>Top Floor</span>
-          <span><span style="display:inline-block;width:13px;height:2px;background:#ff4455;vertical-align:middle;margin-right:4px"></span>Threshold</span>
+          <span><span class="legend-dot" style="background:#00d4ff"></span>Ground Floor |D|</span>
+          <span><span class="legend-dot" style="background:#b06aff"></span>Top Floor |D|</span>
+          <span><span style="display:inline-block;width:14px;height:2px;background:#ffc940;vertical-align:middle;margin-right:4px;border-top:2px dashed #ffc940"></span>d_lim</span>
         </div>
+        <!-- full-width chart -->
         <div class="event-chart-container"><canvas id="${cid}"></canvas></div>
+        <!-- fuzzy panel -->
         ${ev.fuzzy?Fuzzy.buildPanel(ev):''}
       </div>
     </div>`;
@@ -1471,29 +1490,60 @@ function renderEventChart(event){
   const sortedMs=Array.from(timeSet).sort((a,b)=>a-b);
   if(sortedMs.length===0){const ctx=canvas.getContext('2d');ctx.fillStyle='#525d6e';ctx.font='12px monospace';ctx.textAlign='center';ctx.fillText('No data captured',canvas.width/2,canvas.height/2);return;}
   const labels=sortedMs.map(ms=>((ms-captureStartMs)/1000).toFixed(1)+'s');
+  // Use displacement magnitude (mm). dispMag stored in metres → convert to mm.
   const n1Map={},n2Map={};
-  event.node1Data.forEach(d=>{n1Map[d.timestamp.getTime()]=d.magnitude;});
-  event.node2Data.forEach(d=>{n2Map[d.timestamp.getTime()]=d.magnitude;});
+  event.node1Data.forEach(d=>{n1Map[d.timestamp.getTime()]=d.dispMag!=null?d.dispMag*1000:null;});
+  event.node2Data.forEach(d=>{n2Map[d.timestamp.getTime()]=d.dispMag!=null?d.dispMag*1000:null;});
   const n1Values=sortedMs.map(ms=>n1Map[ms]!==undefined?n1Map[ms]:null);
   const n2Values=sortedMs.map(ms=>n2Map[ms]!==undefined?n2Map[ms]:null);
-  const threshold=sortedMs.map(()=>THRESHOLD_UNSAFE);
+  // If all values are null (batch pipeline hadn't run yet), show a message
+  const allNull=v=>v.every(x=>x===null);
+  if(allNull(n1Values)&&allNull(n2Values)){
+    const ctx=canvas.getContext('2d');
+    ctx.fillStyle='#525d6e';ctx.font='12px JetBrains Mono,monospace';ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.fillText('Displacement data not available — batch pipeline had not run during this event',canvas.width/2,canvas.height/2);
+    return;
+  }
+  // d_lim reference line instead of accel threshold
+  const dlim=sortedMs.map(()=>DISP_LIMIT_MM);
   const eventStartMs=event.timestamp.getTime(),eventEndMs=event.endTime.getTime();
   const shadingPlugin={id:`shading_${event.id}`,beforeDraw(chart){
     const{ctx,chartArea,scales}=chart;if(!chartArea)return;
     const lbs=chart.data.labels;let x1=chartArea.left,x2=chartArea.right,foundStart=false;
     for(let i=0;i<lbs.length;i++){const absMs=captureStartMs+parseFloat(lbs[i])*1000;if(!foundStart&&absMs>=eventStartMs){x1=scales.x.getPixelForValue(i);foundStart=true;}if(absMs<=eventEndMs)x2=scales.x.getPixelForValue(i);if(foundStart&&absMs>eventEndMs)break;}
-    ctx.save();ctx.fillStyle='rgba(255,68,85,.1)';ctx.fillRect(x1,chartArea.top,x2-x1,chartArea.bottom-chartArea.top);
+    ctx.save();ctx.fillStyle='rgba(255,68,85,.08)';ctx.fillRect(x1,chartArea.top,x2-x1,chartArea.bottom-chartArea.top);
     ctx.strokeStyle='rgba(255,68,85,.4)';ctx.lineWidth=1.5;ctx.setLineDash([4,3]);[x1,x2].forEach(x=>{ctx.beginPath();ctx.moveTo(x,chartArea.top);ctx.lineTo(x,chartArea.bottom);ctx.stroke();});
     ctx.restore();
   }};
   eventCharts[event.id]=new Chart(canvas,{type:'line',plugins:[shadingPlugin],data:{labels,datasets:[
-    {label:'Ground Floor',data:n1Values,borderColor:'#00d4ff',backgroundColor:'rgba(0,212,255,.07)',borderWidth:2,tension:.35,fill:false,pointRadius:2,spanGaps:true},
-    {label:'Top Floor',   data:n2Values,borderColor:'#b06aff',backgroundColor:'rgba(176,106,255,.07)',borderWidth:2,tension:.35,fill:false,pointRadius:2,spanGaps:true},
-    {label:`Threshold (${THRESHOLD_UNSAFE})`,data:threshold,borderColor:'rgba(255,68,85,.65)',borderWidth:1.5,borderDash:[6,4],pointRadius:0,fill:false,tension:0}
+    {label:'Ground Floor |D|',data:n1Values,borderColor:'#00d4ff',backgroundColor:'rgba(0,212,255,.08)',borderWidth:2,tension:.35,fill:false,pointRadius:3,pointHoverRadius:5,spanGaps:true},
+    {label:'Top Floor |D|',   data:n2Values,borderColor:'#b06aff',backgroundColor:'rgba(176,106,255,.08)',borderWidth:2,tension:.35,fill:false,pointRadius:3,pointHoverRadius:5,spanGaps:true},
+    {label:`d_lim (${DISP_LIMIT_MM} mm)`,data:dlim,borderColor:'rgba(255,201,64,.75)',borderWidth:1.5,borderDash:[6,4],pointRadius:0,fill:false,tension:0}
   ]},options:{responsive:true,maintainAspectRatio:false,animation:false,interaction:{mode:'index',intersect:false},
-    plugins:{legend:{display:false},tooltip:{backgroundColor:'#141e2e',borderColor:'#1e2d42',borderWidth:1,titleColor:'#8a96a8',bodyColor:'#e8edf5',padding:10,callbacks:{label:c=>` ${c.dataset.label}: ${c.parsed.y!==null?c.parsed.y.toFixed(3)+' m/s²':'N/A'}`}}},
-    scales:{x:{ticks:{color:'#525d6e',maxTicksLimit:12,font:{size:9}},grid:{color:'rgba(255,255,255,.03)'},title:{display:true,text:'Time from capture start (s)',color:'#525d6e',font:{size:9}}},
-            y:{ticks:{color:'#525d6e',font:{size:10}},grid:{color:'rgba(255,255,255,.03)'},title:{display:true,text:'Magnitude (m/s²)',color:'#525d6e',font:{size:10}}}}}});
+    plugins:{
+      legend:{display:false},
+      tooltip:{
+        backgroundColor:'#141e2e',borderColor:'#1e2d42',borderWidth:1,
+        titleColor:'#e8edf5',titleFont:{size:11,weight:'bold'},
+        bodyColor:'#8a96a8',bodyFont:{size:10},padding:12,
+        callbacks:{
+          title:items=>`${items[0].label}`,
+          label:c=>{
+            if(c.parsed.y===null)return null;
+            const col=c.datasetIndex===0?'🟦':'🟣';
+            return ` ${col} ${c.dataset.label}: ${c.parsed.y.toFixed(3)} mm`;
+          }
+        }
+      }
+    },
+    scales:{
+      x:{ticks:{color:'#525d6e',maxTicksLimit:14,font:{family:'JetBrains Mono,monospace',size:9}},
+         grid:{color:'rgba(255,255,255,.04)'},
+         title:{display:true,text:'Time from capture start (s)',color:'#525d6e',font:{size:9}}},
+      y:{min:0,ticks:{color:'#525d6e',font:{family:'JetBrains Mono,monospace',size:10}},
+         grid:{color:'rgba(255,255,255,.04)'},
+         title:{display:true,text:'Resultant Displacement |D| (mm)',color:'#525d6e',font:{size:10}}}
+    }}});
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -1544,7 +1594,7 @@ function exportNodeCSV(nodeId){
   const node=nodes[nodeId];
   if(node.sessionPoints.length===0){toast(`No live data yet for ${node.name}.`,'warn',4000);return;}
   const rows=[['ERI - '+node.name+' Acceleration Data'],['Structure',csvF(document.getElementById('structureName').value)],['Exported',csvF(new Date().toLocaleString())],['Session Points',node.sessionPoints.length],[],
-    ['Timestamp','Epoch_ms','X_ms2','Y_ms2','Z_ms2_grav_corr','Magnitude_ms2','Vx_mms','Vy_mms','Vz_mms','Vel_mag_mms','Dx_mm','Dy_mm','Dz_mm','Disp_mag_mm']];
+    ['Timestamp','Epoch_ms','X_ms2','Y_ms2','Z_ms2_grav_corr','Resultant_ms2','Vx_mms','Vy_mms','Vz_mms','Vel_mag_mms','Dx_mm','Dy_mm','Dz_mm','Disp_mag_mm']];
   node.sessionPoints.forEach(p=>{
     const[epochMs,mag,px,py,pz,pvx,pvy,pvz,pvMag,pdx,pdy,pdz,pdMag]=p;
     const f4=v=>v!=null?Number(v).toFixed(4):'';
@@ -1559,10 +1609,10 @@ function exportEventCSV(eventId){
   const buf=event.bufferDuration||BUFFER_DURATION;
   const allPts=[...event.node1Data.map(d=>({...d,nodeName:'Ground Floor'})),...event.node2Data.map(d=>({...d,nodeName:'Top Floor'}))].sort((a,b)=>a.timestamp-b.timestamp);
   const fz=event.fuzzy||Fuzzy.assess(event.duration,event.peakDisplacementMm||event.maxMagnitude);
-  const rows=[['ERI - Unsafe Event #'+(event.seqNum||event.id)],['Structure',csvF(event.structureName)],['Event Start',csvF(event.timestamp.toLocaleString())],['Event End',csvF(event.endTime.toLocaleString())],['Duration_s',event.duration.toFixed(2)],['Peak_Magnitude_ms2',event.maxMagnitude.toFixed(4)],['Peak_Displacement_mm',(event.peakDisplacementMm||0).toFixed(4)],['Buffer_s',buf],
-    ['--- Fuzzy Assessment (Mamdani: Duration x Displacement) ---'],['Fuzzy_Status',fz.status],['Fuzzy_Confidence_pct',fz.confidence.toFixed(1)],['Fuzzy_Centroid',fz.centroid.toFixed(4)],['Fuzzy_Safe_Strength',fz.safeStr.toFixed(4)],['Fuzzy_Warn_Strength',fz.warnStr.toFixed(4)],['Fuzzy_Unsafe_Strength',fz.unsafeStr.toFixed(4)],['Exported',csvF(new Date().toLocaleString())],[],
-    ['Timestamp','Epoch_ms','Node','Magnitude_ms2','X_ms2','Y_ms2','Z_ms2']];
-  allPts.forEach(d=>rows.push([csvF(d.timestamp.toLocaleString()),d.timestamp.getTime(),csvF(d.nodeName),d.magnitude.toFixed(4),(d.x??'').toString(),(d.y??'').toString(),(d.z??'').toString()]));
+  const rows=[['ERI - Unsafe Event #'+(event.seqNum||event.id)],['Structure',csvF(event.structureName)],['Event Start',csvF(event.timestamp.toLocaleString())],['Event End',csvF(event.endTime.toLocaleString())],['Duration_s',event.duration.toFixed(2)],['Peak_Displacement_mm',(event.peakDisplacementMm||0).toFixed(4)],['Buffer_s',buf],
+    ['--- Fuzzy Assessment (Mamdani: Duration × Displacement) ---'],['Fuzzy_Status',fz.status],['Fuzzy_Confidence_pct',fz.confidence.toFixed(1)],['Fuzzy_Centroid',fz.centroid.toFixed(4)],['Fuzzy_Safe_Strength',fz.safeStr.toFixed(4)],['Fuzzy_Warn_Strength',fz.warnStr.toFixed(4)],['Fuzzy_Unsafe_Strength',fz.unsafeStr.toFixed(4)],['Exported',csvF(new Date().toLocaleString())],[],
+    ['Timestamp','Epoch_ms','Node','Disp_mag_mm','Dx_mm','Dy_mm','Dz_mm']];
+  allPts.forEach(d=>rows.push([csvF(d.timestamp.toLocaleString()),d.timestamp.getTime(),csvF(d.nodeName),(d.dispMag!=null?(d.dispMag*1000).toFixed(4):'N/A'),(d.dx!=null?(d.dx*1000).toFixed(4):'N/A'),(d.dy!=null?(d.dy*1000).toFixed(4):'N/A'),(d.dz!=null?(d.dz*1000).toFixed(4):'N/A')]));
   dlCSV(`ERI_Event${event.seqNum||event.id}_${event.timestamp.toISOString().slice(0,10)}.csv`,rows.map(r=>r.join(',')).join('\r\n'));
   toast(`Exported Event #${event.seqNum||event.id}`,'success');
 }
@@ -1571,17 +1621,17 @@ function exportAllEventsCSV(){
   if(unsafeEvents.length===0){toast('No events to export','warn');return;}
   const structure=csvF(document.getElementById('structureName').value);
   const rows=[['ERI - All Unsafe Events Summary'],['Structure',structure],['Exported',csvF(new Date().toLocaleString())],['Total Events',unsafeEvents.length],[],
-    ['Event_ID','Start_Timestamp','End_Timestamp','Duration_s','Peak_Magnitude_ms2','Peak_Displacement_mm','Buffer_s','Ground_Samples','Top_Samples','Structure','Fuzzy_Status','Fuzzy_Confidence_pct','Fuzzy_Centroid','BT_SAT_GAT']];
+    ['Event_ID','Start_Timestamp','End_Timestamp','Duration_s','Peak_Displacement_mm','Buffer_s','Ground_Samples','Top_Samples','Structure','Fuzzy_Status','Fuzzy_Confidence_pct','Fuzzy_Centroid','BT_SAT_GAT']];
   unsafeEvents.forEach(ev=>{
     const fz=ev.fuzzy||Fuzzy.assess(ev.duration,ev.peakDisplacementMm||ev.maxMagnitude);
     const pd=ev.peakDisplacementMm||0,ratio=pd/DISP_LIMIT_MM;
     const dClass=ratio<1?'BT':ratio<1.025?'SAT':'GAT';
-    rows.push([ev.seqNum||ev.id,csvF(ev.timestamp.toLocaleString()),csvF(ev.endTime.toLocaleString()),ev.duration.toFixed(2),ev.maxMagnitude.toFixed(4),pd.toFixed(4),ev.bufferDuration||BUFFER_DURATION,ev.node1Data.length,ev.node2Data.length,csvF(ev.structureName),fz.status,fz.confidence.toFixed(1),fz.centroid.toFixed(4),dClass]);
+    rows.push([ev.seqNum||ev.id,csvF(ev.timestamp.toLocaleString()),csvF(ev.endTime.toLocaleString()),ev.duration.toFixed(2),pd.toFixed(4),ev.bufferDuration||BUFFER_DURATION,ev.node1Data.length,ev.node2Data.length,csvF(ev.structureName),fz.status,fz.confidence.toFixed(1),fz.centroid.toFixed(4),dClass]);
   });
-  rows.push([],['--- DETAILED READINGS ---'],['Event_ID','Timestamp','Epoch_ms','Node','Magnitude_ms2','X_ms2','Y_ms2','Z_ms2']);
+  rows.push([],['--- DETAILED READINGS ---'],['Event_ID','Timestamp','Epoch_ms','Node','Disp_mag_mm','Dx_mm','Dy_mm','Dz_mm']);
   unsafeEvents.forEach(ev=>{
     const all=[...ev.node1Data.map(d=>({...d,nn:'Ground Floor'})),...ev.node2Data.map(d=>({...d,nn:'Top Floor'}))].sort((a,b)=>a.timestamp-b.timestamp);
-    all.forEach(d=>rows.push([ev.seqNum||ev.id,csvF(d.timestamp.toLocaleString()),d.timestamp.getTime(),csvF(d.nn),d.magnitude.toFixed(4),(d.x??'').toString(),(d.y??'').toString(),(d.z??'').toString()]));
+    all.forEach(d=>rows.push([ev.seqNum||ev.id,csvF(d.timestamp.toLocaleString()),d.timestamp.getTime(),csvF(d.nn),(d.dispMag!=null?(d.dispMag*1000).toFixed(4):'N/A'),(d.dx!=null?(d.dx*1000).toFixed(4):'N/A'),(d.dy!=null?(d.dy*1000).toFixed(4):'N/A'),(d.dz!=null?(d.dz*1000).toFixed(4):'N/A')]));
   });
   dlCSV(`ERI_AllEvents_${new Date().toISOString().slice(0,10)}.csv`,rows.map(r=>r.join(',')).join('\r\n'));
   toast(`Exported ${unsafeEvents.length} events`,'success');
@@ -1676,7 +1726,6 @@ function stopDemo(){
 // ══════════════════════════════════════════════════════════════
 
 const nodeZoomState = { node1: 'day', node2: 'day' };
-const liveIntervals = { node1: null,  node2: null  };
 
 function nodeCharts(nodeId) {
   return nodeId === 'node1'
@@ -1684,49 +1733,24 @@ function nodeCharts(nodeId) {
     : [node2Chart, node2ChartX, node2ChartY, node2ChartZ, node2ChartVel, node2ChartDisp];
 }
 
+// applyZoom — 'live' shows last 60s, 'day' shows all chartRing data.
+// Chart updates come from updateAllCharts() which reads nodeZoomState.
 function applyZoom(nodeId, mode) {
-  const charts = nodeCharts(nodeId);
-  const nowIdx = minuteIndex(Date.now());
-  if (mode === 'day') {
-    charts.forEach(ch => { if (!ch) return; ch.options.scales.x.min = undefined; ch.options.scales.x.max = undefined; ch.update('none'); });
-    return;
-  }
-  const halfMap = { live: 5 };
-  const half = halfMap[mode] || 60;
-  const minIdx = Math.max(0, nowIdx - half);
-  const maxIdx = Math.min(1439, nowIdx + 1);
-  charts.forEach(ch => {
-    if (!ch) return;
-    ch.options.scales.x.min = DAY_LABELS[minIdx];
-    ch.options.scales.x.max = DAY_LABELS[maxIdx];
-    ch.update('none');
-  });
+  // Just re-render with the new zoom mode — updateAllCharts slices accordingly
+  updateAllCharts(nodeId);
 }
 
 function setNodeZoom(nodeId, mode) {
   nodeZoomState[nodeId] = mode;
-  // Update button active states for this node
   [['Live','live'],['Day','day']].forEach(([suffix, m]) => {
     const btn = document.getElementById(`${nodeId}Zoom${suffix}`);
     if (btn) btn.classList.toggle('active', m === mode);
   });
-  // Clear any previous auto-slide interval
-  if (liveIntervals[nodeId]) { clearInterval(liveIntervals[nodeId]); liveIntervals[nodeId] = null; }
   applyZoom(nodeId, mode);
-  // For windowed modes, slide the window every 30s so it follows live time
-  if (mode !== 'day') {
-    liveIntervals[nodeId] = setInterval(() => applyZoom(nodeId, mode), 30000);
-  }
 }
 
-// Called after every chart data update to re-enforce the active zoom window
-function reapplyZooms() {
-  ['node1', 'node2'].forEach(nodeId => {
-    if (nodeZoomState[nodeId] !== 'day') applyZoom(nodeId, nodeZoomState[nodeId]);
-  });
-}
 
-// On first data arrival: jump to Live for 4 s, then expand to Full Day
+// On first data arrival: briefly show 'live' (last 60 pts), then switch to 'day' (all data)
 const autoZoom = {
   triggered: false,
   trigger(nodeId) {
@@ -1736,7 +1760,7 @@ const autoZoom = {
     setNodeZoom('node2', 'live');
     setTimeout(() => { setNodeZoom('node1', 'day'); setNodeZoom('node2', 'day'); }, 4000);
   },
-  stop(nodeId) {}  // no-op — kept so existing callers don't break
+  stop(nodeId) {}
 };
 
 // ══════════════════════════════════════════════════════════════
@@ -1788,7 +1812,7 @@ const Fuzzy=(()=>{
       <div class="fuzzy-verdict-row"><div class="fuzzy-verdict ${f.status}">${f.status}</div><div class="fuzzy-conf-label">Confidence: <strong>${f.confidence}%</strong><span style="color:var(--text-muted);font-size:.62rem"> · ${f.confidence>=75?'High':f.confidence>=40?'Moderate':'Low'} confidence</span></div></div>
       <div class="fuzzy-inputs-row">
         <div class="fuzzy-input-chip"><span>Duration: </span><strong>${f.inputs.durationSec.toFixed(1)} s</strong><span style="margin-left:.35rem;color:var(--text-muted)">→ ${dClass} (S:${pct(f.dMem.SHORT)} M:${pct(f.dMem.MEDIUM)} L:${pct(f.dMem.LONG)})</span></div>
-        <div class="fuzzy-input-chip"><span>Peak Disp/Mag: </span><strong>${f.inputs.peakMagMs2.toFixed(3)} mm</strong><span style="margin-left:.35rem;color:var(--text-muted)">→ ${mClass} (Sm:${pct(f.mMem.SMALL)} Mo:${pct(f.mMem.MODERATE)} Lg:${pct(f.mMem.LARGE)})</span></div>
+        <div class="fuzzy-input-chip"><span>Peak Displacement: </span><strong>${f.inputs.peakMagMs2.toFixed(3)} mm</strong><span style="margin-left:.35rem;color:var(--text-muted)">→ ${mClass} (Sm:${pct(f.mMem.SMALL)} Mo:${pct(f.mMem.MODERATE)} Lg:${pct(f.mMem.LARGE)})</span></div>
       </div>
       <div class="fuzzy-membership-section"><div class="fuzzy-membership-title">Output membership (max-OR aggregation)</div>${memBars}</div>
       <div class="fuzzy-centroid-row"><span class="fuzzy-centroid-label">Centroid:</span><div class="fuzzy-centroid-track"><div class="fuzzy-centroid-marker" style="left:${cPct}%"></div></div><span class="fuzzy-centroid-value">${f.centroid.toFixed(3)}</span></div>
@@ -1808,41 +1832,10 @@ const SignalProcessor=(()=>{
   function trapzIntegrate(samples,dt,st){let prev=st.prev;for(let i=0;i<samples.length;i++){const cur=samples[i];st.running+=(prev+cur)*0.5*dt;prev=cur;samples[i]=st.running;}st.prev=prev;return samples;}
   function makeAxisState(){return{hpfAccState:{w1:0,w2:0},hpfVelState:{w1:0,w2:0},hpfDispState:{w1:0,w2:0},trapzVelState:{prev:0,running:0},trapzDispState:{prev:0,running:0}};}
   const state={node1:{x:makeAxisState(),y:makeAxisState(),z:makeAxisState(),cf:null},node2:{x:makeAxisState(),y:makeAxisState(),z:makeAxisState(),cf:null}};
-  // Fixed-length circular buffer — Chart.js sees constant-size arrays → no axis rescaling → no flicker
-  const RING_LEN=150;
-  function makeRing(){const n=()=>Array(RING_LEN).fill(null);return{t:Array(RING_LEN).fill(''),vx:n(),vy:n(),vz:n(),vmag:n(),dx:n(),dy:n(),dz:n(),dmag:n(),head:0,filled:0};}
-  const ring={node1:makeRing(),node2:makeRing()};
-  function pushRing(nodeId,label,vx,vy,vz,dx,dy,dz){
-    const r=ring[nodeId],h=r.head;
-    const vmag=Math.sqrt(vx*vx+vy*vy+vz*vz),dmag=Math.sqrt(dx*dx+dy*dy+dz*dz);
-    r.t[h]=label;r.vx[h]=vx;r.vy[h]=vy;r.vz[h]=vz;r.vmag[h]=vmag;r.dx[h]=dx;r.dy[h]=dy;r.dz[h]=dz;r.dmag[h]=dmag;
-    r.head=(h+1)%RING_LEN;if(r.filled<RING_LEN)r.filled++;
-  }
-  function getView(nodeId){
-    const r=ring[nodeId];
-    if(r.filled<RING_LEN){const e=r.head;const sl=k=>r[k].slice(0,e);return{t:r.t.slice(0,e),vx:sl('vx'),vy:sl('vy'),vz:sl('vz'),vmag:sl('vmag'),dx:sl('dx'),dy:sl('dy'),dz:sl('dz'),dmag:sl('dmag')};}
-    const rot=k=>[...r[k].slice(r.head),...r[k].slice(0,r.head)];
-    return{t:rot('t'),vx:rot('vx'),vy:rot('vy'),vz:rot('vz'),vmag:rot('vmag'),dx:rot('dx'),dy:rot('dy'),dz:rot('dz'),dmag:rot('dmag')};
-  }
-  // Throttle: one rAF per node max — prevents burst redraws from MQTT
-  const rafPending={node1:false,node2:false};
-  function scheduleRefresh(nodeId){
-    if(rafPending[nodeId])return;
-    rafPending[nodeId]=true;
-    requestAnimationFrame(()=>{rafPending[nodeId]=false;_flush(nodeId);});
-  }
-  function _flush(nodeId){
-    const v=getView(nodeId),isN1=nodeId==='node1';
-    const chVel=isN1?node1ChartVel:node2ChartVel,chDisp=isN1?node1ChartDisp:node2ChartDisp;
-    if(chVel){chVel.data.labels=v.t;chVel.data.datasets[0].data=v.vx;chVel.data.datasets[1].data=v.vy;chVel.data.datasets[2].data=v.vz;chVel.data.datasets[3].data=v.vmag;chVel.update('none');}
-    if(chDisp){chDisp.data.labels=v.t;chDisp.data.datasets[0].data=v.dx;chDisp.data.datasets[1].data=v.dy;chDisp.data.datasets[2].data=v.dz;chDisp.data.datasets[3].data=v.dmag;chDisp.update('none');}
-    const lastDmag=ring[nodeId].dmag[(ring[nodeId].head-1+RING_LEN)%RING_LEN]||0;
-    nodes[nodeId].currentDispMm=lastDmag;
-    updateStoryRing(nodes.node1.currentDispMm,nodes.node2.currentDispMm);
-  }
   function processBatch(batch){
     const{nodeId,odr}=batch,ns=state[nodeId];if(!ns)return;
     if(!ns.cf)ns.cf=butterCoeffs(0.5,odr||100);
+    const node=nodes[nodeId];
     const cf=ns.cf,dt=1/(odr||100),n=batch.x.length,results={};
     ['x','y','z'].forEach(axis=>{
       const acc=batch[axis].slice(),st=ns[axis];
@@ -1852,22 +1845,23 @@ const SignalProcessor=(()=>{
       const disp=vel.slice();trapzIntegrate(disp,dt,st.trapzDispState);applyBiquad(disp,cf,st.hpfDispState);
       results[axis]={vel:vel.map(v=>v*1000),disp:disp.map(v=>v*1000)};
     });
-    const lastIdx=n-1,label=new Date(batch.t0_ms+lastIdx*dt*1000).toLocaleTimeString();
-    pushRing(nodeId,label,results.x.vel[lastIdx],results.y.vel[lastIdx],results.z.vel[lastIdx],results.x.disp[lastIdx],results.y.disp[lastIdx],results.z.disp[lastIdx]);
+    // ── Store latest values on node for live stats & story ring ───────────────
+    const lastIdx=n-1;
+    const vx=results.x.vel[lastIdx],vy=results.y.vel[lastIdx],vz=results.z.vel[lastIdx];
+    const dx=results.x.disp[lastIdx],dy=results.y.disp[lastIdx],dz=results.z.disp[lastIdx];
+    node.latestVD={vx,vy,vz,vmag:Math.sqrt(vx*vx+vy*vy+vz*vz),dx,dy,dz,dmag:Math.sqrt(dx*dx+dy*dy+dz*dz)};
     const peakDisp=Math.max(...Array.from({length:n},(_,i)=>Math.sqrt(results.x.disp[i]**2+results.y.disp[i]**2+results.z.disp[i]**2)));
-    nodes[nodeId].peakDispMmSinceEvent=Math.max(nodes[nodeId].peakDispMmSinceEvent||0,peakDisp);
-    scheduleRefresh(nodeId);
+    node.peakDispMmSinceEvent=Math.max(node.peakDispMmSinceEvent||0,peakDisp);
+    node.currentDispMm=node.latestVD.dmag;
     return{results};
   }
-  function getRing(nodeId){return getView(nodeId);}
-  function resetNode(nodeId){const ns=state[nodeId];if(!ns)return;ns.cf=null;['x','y','z'].forEach(axis=>{ns[axis]=makeAxisState();});ring[nodeId]=makeRing();rafPending[nodeId]=false;}
-  return{processBatch,getRing,resetNode};
+  function resetNode(nodeId){const ns=state[nodeId];if(!ns)return;ns.cf=null;['x','y','z'].forEach(axis=>{ns[axis]=makeAxisState();});nodes[nodeId].latestVD={};}
+  return{processBatch,resetNode};
 })();
 
 // ══════════════════════════════════════════════════════════════
 //  INIT
 // ══════════════════════════════════════════════════════════════
-scheduleMidnightReset();
 window.addEventListener('load', connectMQTT);
 </script>
 </body>
