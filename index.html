@@ -1346,7 +1346,7 @@ function endUnsafeEvent(endTime){
   const peakDispMm=Math.max(n1PeakDisp,n2PeakDisp);
   nodes.node1.peakDispMmSinceEvent=0;nodes.node2.peakDispMmSinceEvent=0;
   const event={id:Date.now(),seqNum:unsafeEvents.length+1,timestamp:eventStartTime,endTime,duration:(endTime-eventStartTime)/1000,maxMagnitude:eventMax,peakDisplacementMm:peakDispMm,node1Data,node2Data,structureName:document.getElementById('structureName').value,bufferDuration:BUFFER_DURATION};
-  event.fuzzy=Fuzzy.assess(event.duration,peakDispMm>0?peakDispMm:0);
+  event.fuzzy=Fuzzy.assess(event.duration,peakDispMm>0?peakDispMm:eventMax);
   unsafeEvents.unshift(event);
   updateHistoryUI();updateStoryEventTable();publishSnapshots();
   updateFuzzyHero(event.fuzzy);
@@ -1417,7 +1417,7 @@ function updateHistoryUI(){
     const n1DispMin =n1DispVals.length?Math.min(...n1DispVals).toFixed(3):'N/A';
     const n2DispMin =n2DispVals.length?Math.min(...n2DispVals).toFixed(3):'N/A';
     const seqLabel=ev.seqNum||ev.id;
-    if(!ev.fuzzy) ev.fuzzy=Fuzzy.assess(ev.duration,ev.peakDisplacementMm||0);
+    if(!ev.fuzzy) ev.fuzzy=Fuzzy.assess(ev.duration,ev.peakDisplacementMm||ev.maxMagnitude);
     const fzStatus=ev.fuzzy?ev.fuzzy.status:'—';
     const fzConf=ev.fuzzy?ev.fuzzy.confidence.toFixed(1)+'%':'—';
     const fzColor=fzStatus==='SAFE'?'rgba(0,229,160,.12)':fzStatus==='UNSAFE'?'rgba(255,68,85,.1)':'rgba(255,196,64,.1)';
@@ -1560,7 +1560,7 @@ function updateStoryEventTable(){
       <th style="text-align:right;padding:.5rem .75rem">Confidence</th>
     </tr></thead><tbody>`;
   unsafeEvents.forEach(ev=>{
-    const fz=ev.fuzzy||Fuzzy.assess(ev.duration,ev.peakDisplacementMm||0);
+    const fz=ev.fuzzy||Fuzzy.assess(ev.duration,ev.peakDisplacementMm||ev.maxMagnitude);
     const pd=ev.peakDisplacementMm||0;
     const ratio=pd/DISP_LIMIT_MM;
     const dClass=ratio<1?'BT':ratio<1.025?'SAT':'GAT';
@@ -1604,7 +1604,7 @@ function exportEventCSV(eventId){
   const event=unsafeEvents.find(e=>e.id===eventId);if(!event)return;
   const buf=event.bufferDuration||BUFFER_DURATION;
   const allPts=[...event.node1Data.map(d=>({...d,nodeName:'Ground Floor'})),...event.node2Data.map(d=>({...d,nodeName:'Top Floor'}))].sort((a,b)=>a.timestamp-b.timestamp);
-  const fz=event.fuzzy||Fuzzy.assess(event.duration,event.peakDisplacementMm||0);
+  const fz=event.fuzzy||Fuzzy.assess(event.duration,event.peakDisplacementMm||event.maxMagnitude);
   const rows=[['ERI - Unsafe Event #'+(event.seqNum||event.id)],['Structure',csvF(event.structureName)],['Event Start',csvF(event.timestamp.toLocaleString())],['Event End',csvF(event.endTime.toLocaleString())],['Duration_s',event.duration.toFixed(2)],['Peak_Displacement_mm',(event.peakDisplacementMm||0).toFixed(4)],['Buffer_s',buf],
     ['--- Fuzzy Assessment (Mamdani: Duration × Displacement) ---'],['Fuzzy_Status',fz.status],['Fuzzy_Confidence_pct',fz.confidence.toFixed(1)],['Fuzzy_Centroid',fz.centroid.toFixed(4)],['Fuzzy_Safe_Strength',fz.safeStr.toFixed(4)],['Fuzzy_Warn_Strength',fz.warnStr.toFixed(4)],['Fuzzy_Unsafe_Strength',fz.unsafeStr.toFixed(4)],['Exported',csvF(new Date().toLocaleString())],[],
     ['Timestamp','Epoch_ms','Node','Disp_mag_mm','Dx_mm','Dy_mm','Dz_mm']];
@@ -1619,7 +1619,7 @@ function exportAllEventsCSV(){
   const rows=[['ERI - All Unsafe Events Summary'],['Structure',structure],['Exported',csvF(new Date().toLocaleString())],['Total Events',unsafeEvents.length],[],
     ['Event_ID','Start_Timestamp','End_Timestamp','Duration_s','Peak_Displacement_mm','Buffer_s','Ground_Samples','Top_Samples','Structure','Fuzzy_Status','Fuzzy_Confidence_pct','Fuzzy_Centroid','BT_SAT_GAT']];
   unsafeEvents.forEach(ev=>{
-    const fz=ev.fuzzy||Fuzzy.assess(ev.duration,ev.peakDisplacementMm||0);
+    const fz=ev.fuzzy||Fuzzy.assess(ev.duration,ev.peakDisplacementMm||ev.maxMagnitude);
     const pd=ev.peakDisplacementMm||0,ratio=pd/DISP_LIMIT_MM;
     const dClass=ratio<1?'BT':ratio<1.025?'SAT':'GAT';
     rows.push([ev.seqNum||ev.id,csvF(ev.timestamp.toLocaleString()),csvF(ev.endTime.toLocaleString()),ev.duration.toFixed(2),pd.toFixed(4),ev.bufferDuration||BUFFER_DURATION,ev.node1Data.length,ev.node2Data.length,csvF(ev.structureName),fz.status,fz.confidence.toFixed(1),fz.centroid.toFixed(4),dClass]);
@@ -1768,92 +1768,40 @@ const autoZoom = {
 // ══════════════════════════════════════════════════════════════
 const Fuzzy=(()=>{
   function trapMF(x,a,b,c,d){if(x<=a||x>=d)return 0;if(x>=b&&x<=c)return 1;if(x>a&&x<b)return(x-a)/(b-a);return(d-x)/(d-c);}
-
-  // ── Duration MFs (seconds) ───────────────────────────────────
-  // SHORT: fully short up to 5s, transitions out by 15s
-  // MEDIUM: rises from 5s, plateau 15–30s, falls by 45s
-  // LONG: rises from 30s, fully long by 45s
-  const durMF={
-    SHORT:  d=>trapMF(d,  0,  0,  5, 15),
-    MEDIUM: d=>trapMF(d,  5, 15, 30, 45),
-    LONG:   d=>trapMF(d, 30, 45, 9999, 9999)
-  };
-
-  // ── Displacement MFs — tied to d_lim (DISP_LIMIT_MM) ────────
-  // BT  (Below Threshold):    d < d_lim
-  // SAT (Slightly Above):     d_lim ≤ d < d_lim × 1.025
-  // GAT (Greatly Above):      d ≥ d_lim × 1.025
-  // Trapezoidal MFs with smooth transitions around the boundaries.
-  function dispMFs(d){
-    const lim=DISP_LIMIT_MM;
-    const sat_hi=lim*1.025;
-    const bt_core_hi=lim*0.95;   // BT is fully 1 below 95% of d_lim
-    const bt_fade_hi=lim*1.005;  // BT fades out just above d_lim
-    const sat_fade_lo=lim*0.98;  // SAT rises just below d_lim
-    const sat_fade_hi=sat_hi*1.01;
-    const gat_rise_lo=sat_hi*0.99;
-    return{
-      BT:  trapMF(d, 0, 0, bt_core_hi, bt_fade_hi),
-      SAT: trapMF(d, sat_fade_lo, lim, sat_hi, sat_fade_hi),
-      GAT: trapMF(d, gat_rise_lo, sat_hi, 9999, 9999)
-    };
-  }
-
-  // ── Fuzzy Rules (from thesis) ────────────────────────────────
-  // Time × Displacement → Classification
-  // SHORT  × BT  → SAFE
-  // SHORT  × SAT → SAFE
-  // SHORT  × GAT → UNSAFE
-  // MEDIUM × BT  → SAFE
-  // MEDIUM × SAT → WARNING
-  // MEDIUM × GAT → UNSAFE
-  // LONG   × BT  → WARNING
-  // LONG   × SAT → UNSAFE
-  // LONG   × GAT → UNSAFE
-  const RULES=[
-    ['SHORT', 'BT',  'SAFE',    'Short ∧ BT  → SAFE'],
-    ['SHORT', 'SAT', 'SAFE',    'Short ∧ SAT → SAFE'],
-    ['SHORT', 'GAT', 'UNSAFE',  'Short ∧ GAT → UNSAFE'],
-    ['MEDIUM','BT',  'SAFE',    'Medium ∧ BT  → SAFE'],
-    ['MEDIUM','SAT', 'WARNING', 'Medium ∧ SAT → WARNING'],
-    ['MEDIUM','GAT', 'UNSAFE',  'Medium ∧ GAT → UNSAFE'],
-    ['LONG',  'BT',  'WARNING', 'Long ∧ BT  → WARNING'],
-    ['LONG',  'SAT', 'UNSAFE',  'Long ∧ SAT → UNSAFE'],
-    ['LONG',  'GAT', 'UNSAFE',  'Long ∧ GAT → UNSAFE'],
-  ];
-
+  // Duration MFs (seconds): SHORT 0-15, MEDIUM 5-45, LONG 30+
+  const durMF={SHORT:d=>trapMF(d,0,0,5,15),MEDIUM:d=>trapMF(d,5,15,30,45),LONG:d=>trapMF(d,30,45,9999,9999)};
+  // Displacement MFs (mm): calibrated to ADXL355 noise floor
+  // SMALL <1mm noise, MODERATE 1-10mm, LARGE >5mm structural concern
+  const magMF={SMALL:m=>trapMF(m,0,0,1,3),MODERATE:m=>trapMF(m,1,3,5,10),LARGE:m=>trapMF(m,5,10,9999,9999)};
   const OUT={SAFE:0.0,WARNING:0.5,UNSAFE:1.0};
-
-  function assess(durationSec,peakDispMm){
-    const dMem={
-      SHORT:  durMF.SHORT(durationSec),
-      MEDIUM: durMF.MEDIUM(durationSec),
-      LONG:   durMF.LONG(durationSec)
-    };
-    const mMem=dispMFs(peakDispMm);
-    const ruleFirings=RULES.map(([dur,disp,out,label])=>({
-      label,output:out,
-      strength:Math.min(dMem[dur],mMem[disp])
-    }));
+  const RULES=[
+    ['SHORT','SMALL','SAFE','Short ∧ Small → SAFE'],
+    ['SHORT','MODERATE','WARNING','Short ∧ Moderate → WARNING'],
+    ['SHORT','LARGE','WARNING','Short ∧ Large → WARNING (brief exposure)'],
+    ['MEDIUM','SMALL','SAFE','Medium ∧ Small → SAFE'],
+    ['MEDIUM','MODERATE','WARNING','Medium ∧ Moderate → WARNING'],
+    ['MEDIUM','LARGE','UNSAFE','Medium ∧ Large → UNSAFE'],
+    ['LONG','SMALL','WARNING','Long ∧ Small → WARNING (fatigue risk)'],
+    ['LONG','MODERATE','UNSAFE','Long ∧ Moderate → UNSAFE'],
+    ['LONG','LARGE','UNSAFE','Long ∧ Large → UNSAFE'],
+  ];
+  function assess(durationSec,peakMagMs2){
+    const dMem={SHORT:durMF.SHORT(durationSec),MEDIUM:durMF.MEDIUM(durationSec),LONG:durMF.LONG(durationSec)};
+    const mMem={SMALL:magMF.SMALL(peakMagMs2),MODERATE:magMF.MODERATE(peakMagMs2),LARGE:magMF.LARGE(peakMagMs2)};
+    const ruleFirings=RULES.map(([dur,mag,out,label])=>({label,output:out,strength:Math.min(dMem[dur],mMem[mag])}));
     let safeStr=0,warnStr=0,unsafeStr=0;
-    ruleFirings.forEach(r=>{
-      if(r.output==='SAFE')   safeStr  =Math.max(safeStr,  r.strength);
-      if(r.output==='WARNING')warnStr  =Math.max(warnStr,  r.strength);
-      if(r.output==='UNSAFE') unsafeStr=Math.max(unsafeStr,r.strength);
-    });
+    ruleFirings.forEach(r=>{if(r.output==='SAFE')safeStr=Math.max(safeStr,r.strength);if(r.output==='WARNING')warnStr=Math.max(warnStr,r.strength);if(r.output==='UNSAFE')unsafeStr=Math.max(unsafeStr,r.strength);});
     const total=safeStr+warnStr+unsafeStr;
     const centroid=total>1e-6?(safeStr*OUT.SAFE+warnStr*OUT.WARNING+unsafeStr*OUT.UNSAFE)/total:0;
     const status=centroid<0.35?'SAFE':centroid<0.65?'WARNING':'UNSAFE';
     const dominant=Math.max(safeStr,warnStr,unsafeStr);
     const confidence=total>1e-6?Math.round(dominant/total*1000)/10:100.0;
-    return{status,confidence,centroid,safeStr,warnStr,unsafeStr,ruleFirings,dMem,mMem,inputs:{durationSec,peakDispMm}};
+    return{status,confidence,centroid,safeStr,warnStr,unsafeStr,ruleFirings,dMem,mMem,inputs:{durationSec,peakMagMs2}};
   }
-
   function buildPanel(ev){
-    const f=ev.fuzzy||assess(ev.duration,ev.peakDisplacementMm||0);if(!f)return'';
-    const dClass=f.dMem.LONG>=f.dMem.MEDIUM&&f.dMem.LONG>=f.dMem.SHORT?'LONG':f.dMem.MEDIUM>=f.dMem.SHORT?'MEDIUM':'SHORT';
-    const mMem=f.mMem;
-    const mClass=mMem.GAT>=mMem.SAT&&mMem.GAT>=mMem.BT?'GAT':mMem.SAT>=mMem.BT?'SAT':'BT';
+    const f=ev.fuzzy||assess(ev.duration,ev.peakDisplacementMm||ev.maxMagnitude);if(!f)return'';
+    const dClass=f.dMem.LONG>f.dMem.MEDIUM&&f.dMem.LONG>f.dMem.SHORT?'LONG':f.dMem.MEDIUM>=f.dMem.SHORT?'MEDIUM':'SHORT';
+    const mClass=f.mMem.LARGE>f.mMem.MODERATE&&f.mMem.LARGE>f.mMem.SMALL?'LARGE':f.mMem.MODERATE>=f.mMem.SMALL?'MODERATE':'SMALL';
     const pct=v=>(v*100).toFixed(1)+'%',bar=v=>Math.round(v*100),cPct=Math.round(f.centroid*100);
     const memBars=[{cls:'safe',label:'SAFE',val:f.safeStr},{cls:'warning',label:'WARNING',val:f.warnStr},{cls:'unsafe',label:'UNSAFE',val:f.unsafeStr}]
       .map(m=>`<div class="fuzzy-membar-row"><span class="fuzzy-membar-label">${m.label}</span><div class="fuzzy-membar-track"><div class="fuzzy-membar-fill ${m.cls}" style="width:${bar(m.val)}%"></div></div><span class="fuzzy-membar-value">${pct(m.val)}</span></div>`).join('');
@@ -1864,7 +1812,7 @@ const Fuzzy=(()=>{
       <div class="fuzzy-verdict-row"><div class="fuzzy-verdict ${f.status}">${f.status}</div><div class="fuzzy-conf-label">Confidence: <strong>${f.confidence}%</strong><span style="color:var(--text-muted);font-size:.62rem"> · ${f.confidence>=75?'High':f.confidence>=40?'Moderate':'Low'} confidence</span></div></div>
       <div class="fuzzy-inputs-row">
         <div class="fuzzy-input-chip"><span>Duration: </span><strong>${f.inputs.durationSec.toFixed(1)} s</strong><span style="margin-left:.35rem;color:var(--text-muted)">→ ${dClass} (S:${pct(f.dMem.SHORT)} M:${pct(f.dMem.MEDIUM)} L:${pct(f.dMem.LONG)})</span></div>
-        <div class="fuzzy-input-chip"><span>Peak Displacement: </span><strong>${f.inputs.peakDispMm.toFixed(3)} mm</strong><span style="margin-left:.35rem;color:var(--text-muted)">→ ${mClass} (BT:${pct(mMem.BT)} SAT:${pct(mMem.SAT)} GAT:${pct(mMem.GAT)})</span></div>
+        <div class="fuzzy-input-chip"><span>Peak Displacement: </span><strong>${f.inputs.peakMagMs2.toFixed(3)} mm</strong><span style="margin-left:.35rem;color:var(--text-muted)">→ ${mClass} (Sm:${pct(f.mMem.SMALL)} Mo:${pct(f.mMem.MODERATE)} Lg:${pct(f.mMem.LARGE)})</span></div>
       </div>
       <div class="fuzzy-membership-section"><div class="fuzzy-membership-title">Output membership (max-OR aggregation)</div>${memBars}</div>
       <div class="fuzzy-centroid-row"><span class="fuzzy-centroid-label">Centroid:</span><div class="fuzzy-centroid-track"><div class="fuzzy-centroid-marker" style="left:${cPct}%"></div></div><span class="fuzzy-centroid-value">${f.centroid.toFixed(3)}</span></div>
