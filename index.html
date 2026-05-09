@@ -1773,68 +1773,89 @@ const Fuzzy=(()=>{
 
 // ══════════════════════════════════════════════════════════════
 //  SIGNAL PROCESSOR — 3-Stage Butterworth HPF + Trapz Integration
-//  Fixed-window ring + 10fps throttled chart refresh to fix flicker
+//  Writes results into daySlots (same minute-grid as acceleration)
+//  so vel/disp charts share identical zoom/pan/span behaviour.
 // ══════════════════════════════════════════════════════════════
 const SignalProcessor=(()=>{
   function butterCoeffs(fc,fs){const K=Math.tan(Math.PI*fc/fs),Q=Math.SQRT2/2,norm=1/(1+K/Q+K*K);return{b0:norm,b1:-2*norm,b2:norm,a1:2*(K*K-1)*norm,a2:(1-K/Q+K*K)*norm};}
   function applyBiquad(samples,cf,st){const{b0,b1,b2,a1,a2}=cf;for(let i=0;i<samples.length;i++){const w=samples[i]-a1*st.w1-a2*st.w2;samples[i]=b0*w+b1*st.w1+b2*st.w2;st.w2=st.w1;st.w1=w;}return samples;}
   function trapzIntegrate(samples,dt,st){let prev=st.prev;for(let i=0;i<samples.length;i++){const cur=samples[i];st.running+=(prev+cur)*0.5*dt;prev=cur;samples[i]=st.running;}st.prev=prev;return samples;}
   function makeAxisState(){return{hpfAccState:{w1:0,w2:0},hpfVelState:{w1:0,w2:0},hpfDispState:{w1:0,w2:0},trapzVelState:{prev:0,running:0},trapzDispState:{prev:0,running:0}};}
-  const state={node1:{x:makeAxisState(),y:makeAxisState(),z:makeAxisState(),cf:null},node2:{x:makeAxisState(),y:makeAxisState(),z:makeAxisState(),cf:null}};
-  // Fixed-length circular buffer — Chart.js sees constant-size arrays → no axis rescaling → no flicker
-  const RING_LEN=150;
-  function makeRing(){const n=()=>Array(RING_LEN).fill(null);return{t:Array(RING_LEN).fill(''),vx:n(),vy:n(),vz:n(),vmag:n(),dx:n(),dy:n(),dz:n(),dmag:n(),head:0,filled:0};}
-  const ring={node1:makeRing(),node2:makeRing()};
-  function pushRing(nodeId,label,vx,vy,vz,dx,dy,dz){
-    const r=ring[nodeId],h=r.head;
-    const vmag=Math.sqrt(vx*vx+vy*vy+vz*vz),dmag=Math.sqrt(dx*dx+dy*dy+dz*dz);
-    r.t[h]=label;r.vx[h]=vx;r.vy[h]=vy;r.vz[h]=vz;r.vmag[h]=vmag;r.dx[h]=dx;r.dy[h]=dy;r.dz[h]=dz;r.dmag[h]=dmag;
-    r.head=(h+1)%RING_LEN;if(r.filled<RING_LEN)r.filled++;
-  }
-  function getView(nodeId){
-    const r=ring[nodeId];
-    if(r.filled<RING_LEN){const e=r.head;const sl=k=>r[k].slice(0,e);return{t:r.t.slice(0,e),vx:sl('vx'),vy:sl('vy'),vz:sl('vz'),vmag:sl('vmag'),dx:sl('dx'),dy:sl('dy'),dz:sl('dz'),dmag:sl('dmag')};}
-    const rot=k=>[...r[k].slice(r.head),...r[k].slice(0,r.head)];
-    return{t:rot('t'),vx:rot('vx'),vy:rot('vy'),vz:rot('vz'),vmag:rot('vmag'),dx:rot('dx'),dy:rot('dy'),dz:rot('dz'),dmag:rot('dmag')};
-  }
-  // Throttle: one rAF per node max — prevents burst redraws from MQTT
+
+  const state={
+    node1:{x:makeAxisState(),y:makeAxisState(),z:makeAxisState(),cf:null},
+    node2:{x:makeAxisState(),y:makeAxisState(),z:makeAxisState(),cf:null}
+  };
+
+  // Throttle: one rAF per node so burst MQTT packets don't fire
+  // multiple simultaneous redraws.
   const rafPending={node1:false,node2:false};
   function scheduleRefresh(nodeId){
     if(rafPending[nodeId])return;
     rafPending[nodeId]=true;
-    requestAnimationFrame(()=>{rafPending[nodeId]=false;_flush(nodeId);});
+    requestAnimationFrame(()=>{rafPending[nodeId]=false; updateSpanCharts();});
   }
-  function _flush(nodeId){
-    const v=getView(nodeId),isN1=nodeId==='node1';
-    const chVel=isN1?node1ChartVel:node2ChartVel,chDisp=isN1?node1ChartDisp:node2ChartDisp;
-    if(chVel){chVel.data.labels=v.t;chVel.data.datasets[0].data=v.vx;chVel.data.datasets[1].data=v.vy;chVel.data.datasets[2].data=v.vz;chVel.data.datasets[3].data=v.vmag;chVel.update('none');}
-    if(chDisp){chDisp.data.labels=v.t;chDisp.data.datasets[0].data=v.dx;chDisp.data.datasets[1].data=v.dy;chDisp.data.datasets[2].data=v.dz;chDisp.data.datasets[3].data=v.dmag;chDisp.update('none');}
-    const lastDmag=ring[nodeId].dmag[(ring[nodeId].head-1+RING_LEN)%RING_LEN]||0;
-    nodes[nodeId].currentDispMm=lastDmag;
-    updateStoryRing(nodes.node1.currentDispMm,nodes.node2.currentDispMm);
-  }
+
   function processBatch(batch){
     const{nodeId,odr}=batch,ns=state[nodeId];if(!ns)return;
     if(!ns.cf)ns.cf=butterCoeffs(0.5,odr||100);
     const cf=ns.cf,dt=1/(odr||100),n=batch.x.length,results={};
+
     ['x','y','z'].forEach(axis=>{
       const acc=batch[axis].slice(),st=ns[axis];
-      const mean=acc.reduce((s,v)=>s+v,0)/n;for(let i=0;i<n;i++)acc[i]-=mean;
+      const mean=acc.reduce((s,v)=>s+v,0)/n;
+      for(let i=0;i<n;i++)acc[i]-=mean;
       applyBiquad(acc,cf,st.hpfAccState);
-      const vel=acc.slice();trapzIntegrate(vel,dt,st.trapzVelState);applyBiquad(vel,cf,st.hpfVelState);
-      const disp=vel.slice();trapzIntegrate(disp,dt,st.trapzDispState);applyBiquad(disp,cf,st.hpfDispState);
+      const vel=acc.slice();
+      trapzIntegrate(vel,dt,st.trapzVelState);
+      applyBiquad(vel,cf,st.hpfVelState);
+      const disp=vel.slice();
+      trapzIntegrate(disp,dt,st.trapzDispState);
+      applyBiquad(disp,cf,st.hpfDispState);
+      // convert to mm
       results[axis]={vel:vel.map(v=>v*1000),disp:disp.map(v=>v*1000)};
     });
-    const lastIdx=n-1,label=new Date(batch.t0_ms+lastIdx*dt*1000).toLocaleTimeString();
-    pushRing(nodeId,label,results.x.vel[lastIdx],results.y.vel[lastIdx],results.z.vel[lastIdx],results.x.disp[lastIdx],results.y.disp[lastIdx],results.z.disp[lastIdx]);
-    const peakDisp=Math.max(...Array.from({length:n},(_,i)=>Math.sqrt(results.x.disp[i]**2+results.y.disp[i]**2+results.z.disp[i]**2)));
+
+    // Write every sample into the daySlots minute-grid.
+    // Multiple samples in the same minute keep the peak value,
+    // exactly as acceleration does — so the zoom grid is shared.
+    for(let i=0;i<n;i++){
+      const sampleEpochMs = batch.t0_ms + i*dt*1000;
+      const idx = minuteIndex(sampleEpochMs);
+      const s = daySlots[nodeId];
+      const vxmm=results.x.vel[i], vymm=results.y.vel[i], vzmm=results.z.vel[i];
+      const dxmm=results.x.disp[i],dymm=results.y.disp[i],dzmm=results.z.disp[i];
+      const vmag=Math.sqrt(vxmm*vxmm+vymm*vymm+vzmm*vzmm);
+      const dmag=Math.sqrt(dxmm*dxmm+dymm*dymm+dzmm*dzmm);
+      // Keep peak velocity magnitude per minute slot
+      if(s.vel[idx]===null||vmag>s.vel[idx]){
+        s.vx[idx]=vxmm; s.vy[idx]=vymm; s.vz[idx]=vzmm; s.vel[idx]=vmag;
+        s.dx[idx]=dxmm; s.dy[idx]=dymm; s.dz[idx]=dzmm; s.disp[idx]=dmag;
+      }
+    }
+
+    // Peak displacement for event detection
+    const lastIdx=n-1;
+    const peakDisp=Math.max(...Array.from({length:n},(_,i)=>
+      Math.sqrt(results.x.disp[i]**2+results.y.disp[i]**2+results.z.disp[i]**2)));
     nodes[nodeId].peakDispMmSinceEvent=Math.max(nodes[nodeId].peakDispMmSinceEvent||0,peakDisp);
+    nodes[nodeId].currentDispMm=Math.sqrt(
+      results.x.disp[lastIdx]**2+results.y.disp[lastIdx]**2+results.z.disp[lastIdx]**2);
+
+    // Story displacement update
+    updateStoryRing(nodes.node1.currentDispMm, nodes.node2.currentDispMm);
+
+    // Single throttled chart refresh (updates all span charts including vel/disp)
     scheduleRefresh(nodeId);
     return{results};
   }
-  function getRing(nodeId){return getView(nodeId);}
-  function resetNode(nodeId){const ns=state[nodeId];if(!ns)return;ns.cf=null;['x','y','z'].forEach(axis=>{ns[axis]=makeAxisState();});ring[nodeId]=makeRing();rafPending[nodeId]=false;}
-  return{processBatch,getRing,resetNode};
+
+  function resetNode(nodeId){
+    const ns=state[nodeId];if(!ns)return;
+    ns.cf=null;['x','y','z'].forEach(axis=>{ns[axis]=makeAxisState();});
+    rafPending[nodeId]=false;
+  }
+  return{processBatch,resetNode};
 })();
 
 // ══════════════════════════════════════════════════════════════
