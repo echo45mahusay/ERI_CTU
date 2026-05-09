@@ -1831,13 +1831,16 @@ const Fuzzy=(()=>{
   function trapMF(x,a,b,c,d){if(x<=a||x>=d)return 0;if(x>=b&&x<=c)return 1;if(x>a&&x<b)return(x-a)/(b-a);return(d-x)/(d-c);}
 
   // ── Duration membership functions (seconds) ──────────────────
-  // SHORT : fully active 0–5s, fades out by 15s
-  // MEDIUM: rises 5–15s, plateau 15–30s, fades 30–45s
-  // LONG  : rises 30–45s, fully active beyond 45s
+  // Thesis-defined crisp boundaries with soft 2s overlap transitions:
+  //   SHORT  : d < 10s   (fully SHORT below 8s, fades out by 12s)
+  //   MEDIUM : 10s ≤ d ≤ 25s (rises 8–12s, plateau 12–23s, fades 23–27s)
+  //   LONG   : d > 25s   (rises 23–27s, fully LONG beyond 27s)
+  // The ±2s transition zone prevents hard discontinuities at the
+  // 10s and 25s boundaries so rules fire smoothly near the edges.
   const durMF={
-    SHORT:  d=>trapMF(d,  0,  0,  5, 15),
-    MEDIUM: d=>trapMF(d,  5, 15, 30, 45),
-    LONG:   d=>trapMF(d, 30, 45, 9999, 9999)
+    SHORT:  d=>trapMF(d,  0,  0,  8, 12),
+    MEDIUM: d=>trapMF(d,  8, 12, 23, 27),
+    LONG:   d=>trapMF(d, 23, 27, 9999, 9999)
   };
 
   // ── Displacement membership functions — tied to d_lim ────────
@@ -1955,6 +1958,7 @@ const Fuzzy=(()=>{
         <div class="fuzzy-input-chip">
           <span>Duration: </span><strong>${f.inputs.durationSec.toFixed(1)} s</strong>
           <span style="margin-left:.35rem;color:var(--text-muted)">→ ${dClass}
+            · Short&lt;10s · Medium 10–25s · Long&gt;25s
             (S:${pct(f.dMem.SHORT)} M:${pct(f.dMem.MEDIUM)} L:${pct(f.dMem.LONG)})
           </span>
         </div>
