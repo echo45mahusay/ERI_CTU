@@ -675,8 +675,6 @@ body {
         <div class="zoom-bar">
           <span class="zoom-bar-label">🔍 Zoom</span>
           <button class="span-btn" id="node1ZoomLive" onclick="setNodeZoom('node1','live')">Live</button>
-          <button class="span-btn" id="node1Zoom30m"  onclick="setNodeZoom('node1','30m')">30 min</button>
-          <button class="span-btn" id="node1Zoom1h"   onclick="setNodeZoom('node1','1h')">1 hour</button>
           <button class="span-btn active" id="node1ZoomDay" onclick="setNodeZoom('node1','day')">Full Day</button>
         </div>
         <div class="chart-grid">
@@ -740,8 +738,6 @@ body {
         <div class="zoom-bar">
           <span class="zoom-bar-label">🔍 Zoom</span>
           <button class="span-btn" id="node2ZoomLive" onclick="setNodeZoom('node2','live')">Live</button>
-          <button class="span-btn" id="node2Zoom30m"  onclick="setNodeZoom('node2','30m')">30 min</button>
-          <button class="span-btn" id="node2Zoom1h"   onclick="setNodeZoom('node2','1h')">1 hour</button>
           <button class="span-btn active" id="node2ZoomDay" onclick="setNodeZoom('node2','day')">Full Day</button>
         </div>
         <div class="chart-grid">
@@ -1675,7 +1671,7 @@ function stopDemo(){
 // ══════════════════════════════════════════════════════════════
 // ══════════════════════════════════════════════════════════════
 //  ZOOM ENGINE — button-driven, no panning, all graphs synced
-//  Modes: live (last 5 min) | 30m | 1h | day (full 24H)
+//  Modes: live (last 5 min) | day (full 24H)
 //  Each node is independent. Both nodes default to Full Day.
 // ══════════════════════════════════════════════════════════════
 
@@ -1695,7 +1691,7 @@ function applyZoom(nodeId, mode) {
     charts.forEach(ch => { if (!ch) return; ch.options.scales.x.min = undefined; ch.options.scales.x.max = undefined; ch.update('none'); });
     return;
   }
-  const halfMap = { live: 5, '30m': 30, '1h': 60 };
+  const halfMap = { live: 5 };
   const half = halfMap[mode] || 60;
   const minIdx = Math.max(0, nowIdx - half);
   const maxIdx = Math.min(1439, nowIdx + 1);
@@ -1710,7 +1706,7 @@ function applyZoom(nodeId, mode) {
 function setNodeZoom(nodeId, mode) {
   nodeZoomState[nodeId] = mode;
   // Update button active states for this node
-  [['Live','live'],['30m','30m'],['1h','1h'],['Day','day']].forEach(([suffix, m]) => {
+  [['Live','live'],['Day','day']].forEach(([suffix, m]) => {
     const btn = document.getElementById(`${nodeId}Zoom${suffix}`);
     if (btn) btn.classList.toggle('active', m === mode);
   });
