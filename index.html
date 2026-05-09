@@ -1285,7 +1285,8 @@ function updateStoryRing(n1d, n2d){
     storyDispChart.update('none');
   }
   // Update story tab stats
-  const drift=Math.abs(n2d-n1d);
+  // Story drift = |D_topfloor - D_groundfloor| (relative displacement)
+  const drift=nodes.node1.currentStoryDriftMm||Math.abs(n2d-n1d);
   const driftEl=document.getElementById('storyDrift');
   const driftBadge=document.getElementById('storyDriftBadge');
   if(driftEl) driftEl.textContent=drift.toFixed(3)+' mm';
@@ -1336,12 +1337,13 @@ function updateAccelData(nodeId,data){
   autoZoom.trigger(nodeId);
   try{ updateAllCharts(nodeId); }
   catch(e){ console.warn('[accel] updateAllCharts failed:',e); }
-  scheduleSnapshot();checkStructureStatus();
+  scheduleSnapshot(); // event detection handled by updateSTALTA
 }
 
 function updateSTALTA(nodeId,data){
   const node=nodes[nodeId],ratio=parseFloat(data.ratio)||0,ready=!!data.ltaReady;
   node.staLtaRatio=ratio;
+  node.ltaReady=ready; // store so checkStructureStatus can read it
   document.getElementById(`${nodeId}Ratio`).textContent=ratio.toFixed(2);
   document.getElementById(`${nodeId}LTA`).textContent=ready?'Ready':'Filling';
   document.getElementById(`${nodeId}STALTAText`).textContent=`${ratio.toFixed(2)} / threshold ${THRESHOLD_STALTA.toFixed(1)}`;
@@ -1349,6 +1351,8 @@ function updateSTALTA(nodeId,data){
   const bar=document.getElementById(`${nodeId}STALTABar`);
   bar.style.width=pct+'%';
   bar.style.background=ratio>=THRESHOLD_STALTA?'var(--accent-red)':ratio>=THRESHOLD_STALTA*0.7?'var(--accent-yellow)':'var(--accent-green)';
+  // STA/LTA is the earthquake detector — check for event trigger on every update
+  checkStructureStatus();
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -1375,23 +1379,41 @@ function updateFuzzyHero(fz){
 //  THRESHOLD & EVENT DETECTION
 // ══════════════════════════════════════════════════════════════
 function checkStructureStatus(){
-  const n1d=nodes.node1.currentDispMm||0,n2d=nodes.node2.currentDispMm||0;
-  const maxDisp=Math.max(n1d,n2d);
-  const card=document.getElementById('overallStatusCard'),valEl=document.getElementById('overallStatusValue'),infoEl=document.getElementById('overallStatusInfo');
-  if(maxDisp>=DISP_LIMIT_MM){
+  // ── Detection: STA/LTA from either node triggers the event window ──────────
+  // STA/LTA is the seismological standard for earthquake onset detection.
+  // When either node's ratio ≥ THRESHOLD_STALTA, an earthquake is in progress.
+  // The event window is held open as long as at least one node stays triggered.
+  // On window close, peak story drift from the capture is fed into the fuzzy rules.
+  const n1Ready = nodes.node1.ltaReady || false;
+  const n2Ready = nodes.node2.ltaReady || false;
+  const n1Trig  = n1Ready && (nodes.node1.staLtaRatio||0) >= THRESHOLD_STALTA;
+  const n2Trig  = n2Ready && (nodes.node2.staLtaRatio||0) >= THRESHOLD_STALTA;
+  const detected = n1Trig || n2Trig;
+
+  const storyDrift = nodes.node1.currentStoryDriftMm || 0;
+  const card=document.getElementById('overallStatusCard'),
+        valEl=document.getElementById('overallStatusValue'),
+        infoEl=document.getElementById('overallStatusInfo');
+
+  if(detected){
     if(eventEndTimeout){clearTimeout(eventEndTimeout);eventEndTimeout=null;}
     if(structureStatus==='SAFE'){structureStatus='UNSAFE';startUnsafeEvent();}
-    card.classList.add('unsafe');valEl.textContent='UNSAFE';valEl.className='overall-status-value unsafe';
-    infoEl.textContent=`⚠️ Displacement limit exceeded! Max: ${maxDisp.toFixed(3)} mm (d_lim: ${DISP_LIMIT_MM} mm)`;
-    document.getElementById('statusInfo').textContent='⚠️ UNSAFE — Recording event…';
+    card.classList.add('unsafe');
+    valEl.textContent='UNSAFE';valEl.className='overall-status-value unsafe';
+    const trigNode = n1Trig&&n2Trig?'Both nodes':n1Trig?'Ground Floor':'Top Floor';
+    const ratioStr = Math.max(nodes.node1.staLtaRatio||0, nodes.node2.staLtaRatio||0).toFixed(2);
+    infoEl.textContent=`⚠️ Earthquake detected! STA/LTA: ${ratioStr} (${trigNode}) · Story Drift: ${storyDrift.toFixed(3)} mm`;
+    document.getElementById('statusInfo').textContent='⚠️ Earthquake detected — Recording event…';
   }else{
     if(structureStatus==='UNSAFE'&&!eventEndTimeout){
       const endTime=new Date();
       eventEndTimeout=setTimeout(()=>{endUnsafeEvent(endTime);eventEndTimeout=null;},BUFFER_DURATION*1000);
     }
-    structureStatus='SAFE';card.classList.remove('unsafe');valEl.textContent='SAFE';valEl.className='overall-status-value safe';
-    infoEl.textContent=`All nodes within safe parameters (Max disp: ${maxDisp.toFixed(3)} mm / d_lim: ${DISP_LIMIT_MM} mm)`;
-    document.getElementById('statusInfo').textContent=`Monitoring · d_lim: ${DISP_LIMIT_MM} mm`;
+    structureStatus='SAFE';
+    card.classList.remove('unsafe');
+    valEl.textContent='SAFE';valEl.className='overall-status-value safe';
+    infoEl.textContent=`No earthquake detected · Story Drift: ${storyDrift.toFixed(3)} mm / d_lim: ${DISP_LIMIT_MM} mm`;
+    document.getElementById('statusInfo').textContent=`Monitoring · STA/LTA threshold: ${THRESHOLD_STALTA}`;
   }
 }
 function startUnsafeEvent(){isRecordingEvent=true;eventStartTime=new Date();}
@@ -1403,17 +1425,28 @@ function endUnsafeEvent(endTime){
   const node2Data=nodes.node2.dataBuffer.filter(d=>d.timestamp>=captureStart&&d.timestamp<=captureEnd);
   const allMags=[...node1Data,...node2Data].map(d=>d.magnitude);
   const eventMax=allMags.length>0?Math.max(...allMags):0;
-  const n1PeakDisp=nodes.node1.peakDispMmSinceEvent||0,n2PeakDisp=nodes.node2.peakDispMmSinceEvent||0;
-  const peakDispMm=Math.max(n1PeakDisp,n2PeakDisp);
-  nodes.node1.peakDispMmSinceEvent=0;nodes.node2.peakDispMmSinceEvent=0;
-  const event={id:Date.now(),seqNum:unsafeEvents.length+1,timestamp:eventStartTime,endTime,duration:(endTime-eventStartTime)/1000,maxMagnitude:eventMax,peakDisplacementMm:peakDispMm,node1Data,node2Data,structureName:document.getElementById('structureName').value,bufferDuration:BUFFER_DURATION};
-  event.fuzzy=Fuzzy.assess(event.duration,peakDispMm>0?peakDispMm:0);
+  // Peak story drift = relative displacement (TF − GF) during the event
+  const peakStoryDriftMm = nodes.node1.peakStoryDriftMmSinceEvent || 0;
+  nodes.node1.peakStoryDriftMmSinceEvent=0; nodes.node2.peakStoryDriftMmSinceEvent=0;
+  nodes.node1.peakDispMmSinceEvent=0;       nodes.node2.peakDispMmSinceEvent=0;
+  const event={
+    id:Date.now(), seqNum:unsafeEvents.length+1,
+    timestamp:eventStartTime, endTime,
+    duration:(endTime-eventStartTime)/1000,
+    maxMagnitude:eventMax,
+    peakDisplacementMm:peakStoryDriftMm, // stored as peakDisplacementMm for CSV/history compat
+    peakStoryDriftMm,                    // explicit field for clarity
+    node1Data, node2Data,
+    structureName:document.getElementById('structureName').value,
+    bufferDuration:BUFFER_DURATION
+  };
+  event.fuzzy=Fuzzy.assess(event.duration, peakStoryDriftMm>0 ? peakStoryDriftMm : 0);
   unsafeEvents.unshift(event);
   updateHistoryUI();updateStoryEventTable();publishSnapshots();
   updateFuzzyHero(event.fuzzy);
   const fzLabel=event.fuzzy?` 🧠 ${event.fuzzy.status} (${event.fuzzy.confidence.toFixed(0)}%)` :'';
-  const dispLabel=peakDispMm>0?`${peakDispMm.toFixed(3)} mm`:'—';
-  toast(`⚠️ Event #${event.seqNum} — Peak Disp: ${dispLabel} · ${event.duration.toFixed(1)}s${fzLabel}`,'warn',7000);
+  const driftLabel=peakStoryDriftMm>0?`${peakStoryDriftMm.toFixed(3)} mm`:'—';
+  toast(`⚠️ Event #${event.seqNum} — Story Drift: ${driftLabel} · ${event.duration.toFixed(1)}s${fzLabel}`,'warn',7000);
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -1446,7 +1479,7 @@ function switchTab(name){
 function clearAllData(){
   if(!confirm('⚠️ Clear ALL recorded data and events?\n\nThis also clears the persisted history on the broker. Cannot be undone.')) return;
   unsafeEvents=[];
-  ['node1','node2'].forEach(id=>{Object.assign(nodes[id],{raw:{},hourly:{},daily:{},livePoints:[],sessionPoints:[],maxMagnitude:0,dataBuffer:[],currentDispMm:0});document.getElementById(`${id}Max`).textContent='—';});
+  ['node1','node2'].forEach(id=>{Object.assign(nodes[id],{raw:{},hourly:{},daily:{},livePoints:[],sessionPoints:[],maxMagnitude:0,dataBuffer:[],currentDispMm:0,currentStoryDriftMm:0,peakStoryDriftMmSinceEvent:0,peakDispMmSinceEvent:0,staLtaRatio:0,ltaReady:false});document.getElementById(`${id}Max`).textContent='—';});
   Object.values(eventCharts).forEach(c=>c.destroy());eventCharts={};
   if(mqttClient&&mqttClient.connected){['node1','node2'].forEach(id=>{mqttClient.publish(`eri/persist/${id}/raw`,'{}',{retain:true,qos:1});});mqttClient.publish(TOPIC_PERSIST_EVENTS,'[]',{retain:true,qos:1});}
   chartRing.node1 = makeChartRing();
@@ -1484,7 +1517,7 @@ function updateHistoryUI(){
     const fzColor=fzStatus==='SAFE'?'rgba(0,229,160,.12)':fzStatus==='UNSAFE'?'rgba(255,68,85,.1)':'rgba(255,196,64,.1)';
     const fzBorder=fzStatus==='SAFE'?'rgba(0,229,160,.35)':fzStatus==='UNSAFE'?'rgba(255,68,85,.35)':'rgba(255,196,64,.35)';
     const fzText=fzStatus==='SAFE'?'var(--accent-green)':fzStatus==='UNSAFE'?'var(--accent-red)':'var(--accent-yellow)';
-    const peakDispStr=ev.peakDisplacementMm?ev.peakDisplacementMm.toFixed(3)+' mm':'N/A';
+    const peakDispStr=ev.peakStoryDriftMm!=null?ev.peakStoryDriftMm.toFixed(3)+' mm':(ev.peakDisplacementMm?ev.peakDisplacementMm.toFixed(3)+' mm':'N/A');
     return `<div class="history-item">
       <!-- ── Header row: timestamp + badges ── -->
       <div class="history-item-header">
@@ -1498,7 +1531,7 @@ function updateHistoryUI(){
       <!-- ── Stat strip ── -->
       <div class="history-details">
         <div class="history-detail"><div class="history-detail-label">Duration</div><div class="history-detail-value">${ev.duration.toFixed(1)} s</div></div>
-        <div class="history-detail"><div class="history-detail-label">Peak Displacement (Overall)</div><div class="history-detail-value">${peakDispStr}</div></div>
+        <div class="history-detail"><div class="history-detail-label">Peak Story Drift (Δ)</div><div class="history-detail-value">${peakDispStr}</div></div>
         <div class="history-detail"><div class="history-detail-label">🏢 GF Peak Disp</div><div class="history-detail-value">${n1DispPeak} mm</div></div>
         <div class="history-detail"><div class="history-detail-label">🏗️ TF Peak Disp</div><div class="history-detail-value">${n2DispPeak} mm</div></div>
         <div class="history-detail"><div class="history-detail-label">Total Samples</div><div class="history-detail-value">${ev.node1Data.length+ev.node2Data.length}</div></div>
@@ -1666,7 +1699,7 @@ function exportEventCSV(eventId){
   const buf=event.bufferDuration||BUFFER_DURATION;
   const allPts=[...event.node1Data.map(d=>({...d,nodeName:'Ground Floor'})),...event.node2Data.map(d=>({...d,nodeName:'Top Floor'}))].sort((a,b)=>a.timestamp-b.timestamp);
   const fz=event.fuzzy||Fuzzy.assess(event.duration,event.peakDisplacementMm||0);
-  const rows=[['ERI - Unsafe Event #'+(event.seqNum||event.id)],['Structure',csvF(event.structureName)],['Event Start',csvF(event.timestamp.toLocaleString())],['Event End',csvF(event.endTime.toLocaleString())],['Duration_s',event.duration.toFixed(2)],['Peak_Displacement_mm',(event.peakDisplacementMm||0).toFixed(4)],['Buffer_s',buf],
+  const rows=[['ERI - Unsafe Event #'+(event.seqNum||event.id)],['Structure',csvF(event.structureName)],['Event Start',csvF(event.timestamp.toLocaleString())],['Event End',csvF(event.endTime.toLocaleString())],['Duration_s',event.duration.toFixed(2)],['Peak_Story_Drift_mm',(event.peakDisplacementMm||0).toFixed(4)],['Buffer_s',buf],
     ['--- Fuzzy Assessment (Mamdani: Duration × Displacement) ---'],['Fuzzy_Status',fz.status],['Fuzzy_Confidence_pct',fz.confidence.toFixed(1)],['Fuzzy_Centroid',fz.centroid.toFixed(4)],['Fuzzy_Safe_Strength',fz.safeStr.toFixed(4)],['Fuzzy_Warn_Strength',fz.warnStr.toFixed(4)],['Fuzzy_Unsafe_Strength',fz.unsafeStr.toFixed(4)],['Exported',csvF(new Date().toLocaleString())],[],
     ['Timestamp','Epoch_ms','Node','Disp_mag_mm','Dx_mm','Dy_mm','Dz_mm']];
   allPts.forEach(d=>rows.push([csvF(d.timestamp.toLocaleString()),d.timestamp.getTime(),csvF(d.nodeName),(d.dispMag!=null?(d.dispMag*1000).toFixed(4):'N/A'),(d.dx!=null?(d.dx*1000).toFixed(4):'N/A'),(d.dy!=null?(d.dy*1000).toFixed(4):'N/A'),(d.dz!=null?(d.dz*1000).toFixed(4):'N/A')]));
@@ -1678,12 +1711,12 @@ function exportAllEventsCSV(){
   if(unsafeEvents.length===0){toast('No events to export','warn');return;}
   const structure=csvF(document.getElementById('structureName').value);
   const rows=[['ERI - All Unsafe Events Summary'],['Structure',structure],['Exported',csvF(new Date().toLocaleString())],['Total Events',unsafeEvents.length],[],
-    ['Event_ID','Start_Timestamp','End_Timestamp','Duration_s','Peak_Displacement_mm','Buffer_s','Ground_Samples','Top_Samples','Structure','Fuzzy_Status','Fuzzy_Confidence_pct','Fuzzy_Centroid','BT_SAT_GAT']];
+    ['Event_ID','Start_Timestamp','End_Timestamp','Duration_s','Peak_Story_Drift_mm','Buffer_s','Ground_Samples','Top_Samples','Structure','Fuzzy_Status','Fuzzy_Confidence_pct','Fuzzy_Centroid','BT_SAT_GAT']];
   unsafeEvents.forEach(ev=>{
     const fz=ev.fuzzy||Fuzzy.assess(ev.duration,ev.peakDisplacementMm||0);
     const pd=ev.peakDisplacementMm||0,ratio=pd/DISP_LIMIT_MM;
     const dClass=ratio<1?'BT':ratio<1.025?'SAT':'GAT';
-    rows.push([ev.seqNum||ev.id,csvF(ev.timestamp.toLocaleString()),csvF(ev.endTime.toLocaleString()),ev.duration.toFixed(2),pd.toFixed(4),ev.bufferDuration||BUFFER_DURATION,ev.node1Data.length,ev.node2Data.length,csvF(ev.structureName),fz.status,fz.confidence.toFixed(1),fz.centroid.toFixed(4),dClass]);
+    rows.push([ev.seqNum||ev.id,csvF(ev.timestamp.toLocaleString()),csvF(ev.endTime.toLocaleString()),ev.duration.toFixed(2),( ev.peakStoryDriftMm!=null ? ev.peakStoryDriftMm : (ev.peakDisplacementMm||0) ).toFixed(4),ev.bufferDuration||BUFFER_DURATION,ev.node1Data.length,ev.node2Data.length,csvF(ev.structureName),fz.status,fz.confidence.toFixed(1),fz.centroid.toFixed(4),dClass]);
   });
   rows.push([],['--- DETAILED READINGS ---'],['Event_ID','Timestamp','Epoch_ms','Node','Disp_mag_mm','Dx_mm','Dy_mm','Dz_mm']);
   unsafeEvents.forEach(ev=>{
@@ -1756,7 +1789,7 @@ function startDemo(){
       nodes[id].currentDispMm=disp;
       nodes[id].latestVD={vx:0,vy:0,vz:0,vmag:0,dx:disp/Math.SQRT3,dy:disp/Math.SQRT3,dz:disp/Math.SQRT3,dmag:disp};
       updateAccelData(id,{magnitude:mag,x,y,z,unix_ms:Date.now()});
-      updateSTALTA(id,{ratio:staltaRatio+(i===0?0:0.2),threshold:THRESHOLD_STALTA,ltaReady:true,earthquakeDetected:staltaRatio>THRESHOLD_STALTA});
+      updateSTALTA(id,{ratio:staltaRatio+(i===0?0:0.2),threshold:THRESHOLD_STALTA,ltaReady:true,earthquakeDetected:staltaRatio>THRESHOLD_STALTA}); // updateSTALTA calls checkStructureStatus
     });
 
     // Update story displacement directly
@@ -1963,7 +1996,7 @@ const Fuzzy=(()=>{
           </span>
         </div>
         <div class="fuzzy-input-chip">
-          <span>Peak Displacement: </span><strong>${f.inputs.peakDispMm.toFixed(3)} mm</strong>
+          <span>Peak Story Drift (Δ): </span><strong>${f.inputs.peakDispMm.toFixed(3)} mm</strong>
           <span style="margin-left:.35rem;color:var(--text-muted)">→ ${mClass}
             (BT:${pct(mMem.BT)} SAT:${pct(mMem.SAT)} GAT:${pct(mMem.GAT)})
           </span>
@@ -2010,17 +2043,40 @@ const SignalProcessor=(()=>{
       const disp=vel.slice();trapzIntegrate(disp,dt,st.trapzDispState);applyBiquad(disp,cf,st.hpfDispState);
       results[axis]={vel:vel.map(v=>v*1000),disp:disp.map(v=>v*1000)};
     });
-    // ── Store latest values on node for live stats & story ring ───────────────
+    // ── Store latest absolute displacement on node ──────────────────────────
     const lastIdx=n-1;
     const vx=results.x.vel[lastIdx],vy=results.y.vel[lastIdx],vz=results.z.vel[lastIdx];
     const dx=results.x.disp[lastIdx],dy=results.y.disp[lastIdx],dz=results.z.disp[lastIdx];
     node.latestVD={vx,vy,vz,vmag:Math.sqrt(vx*vx+vy*vy+vz*vz),dx,dy,dz,dmag:Math.sqrt(dx*dx+dy*dy+dz*dz)};
-    const peakDisp=Math.max(...Array.from({length:n},(_,i)=>Math.sqrt(results.x.disp[i]**2+results.y.disp[i]**2+results.z.disp[i]**2)));
-    node.peakDispMmSinceEvent=Math.max(node.peakDispMmSinceEvent||0,peakDisp);
-    node.currentDispMm=node.latestVD.dmag;
-    // Check displacement trigger every time fresh batch data arrives,
-    // not just when /acceleration packets arrive (which have stale dispMm).
-    checkStructureStatus();
+    node.currentDispMm=node.latestVD.dmag; // absolute |D| at this node (mm)
+
+    // ── Compute relative story drift = |D_topfloor - D_groundfloor| ─────────
+    // Story drift is the per-axis difference, then resultant magnitude.
+    // This is the NSCP storey displacement: Δ = D_roof - D_floor.
+    // Both nodes must have fresh data; skip if the other node hasn't reported yet.
+    const otherNode = nodes[nodeId==='node1' ? 'node2' : 'node1'];
+    const otherVD   = otherNode.latestVD || {};
+    if(otherVD.dx != null){
+      // node2 = top floor, node1 = ground floor
+      const isTopFloor = nodeId === 'node2';
+      const tfVD = isTopFloor ? node.latestVD : otherVD;
+      const gfVD = isTopFloor ? otherVD       : node.latestVD;
+      // Sample-by-sample story drift using latest VD from both nodes
+      const ddx = tfVD.dx - gfVD.dx;
+      const ddy = tfVD.dy - gfVD.dy;
+      const ddz = tfVD.dz - gfVD.dz;
+      const storyDrift = Math.sqrt(ddx*ddx + ddy*ddy + ddz*ddz); // mm
+      // Store on BOTH nodes so checkStructureStatus can read from either
+      nodes.node1.currentStoryDriftMm = storyDrift;
+      nodes.node2.currentStoryDriftMm = storyDrift;
+      // Track peak drift during the current event window
+      nodes.node1.peakStoryDriftMmSinceEvent = Math.max(nodes.node1.peakStoryDriftMmSinceEvent||0, storyDrift);
+      nodes.node2.peakStoryDriftMmSinceEvent = Math.max(nodes.node2.peakStoryDriftMmSinceEvent||0, storyDrift);
+    }
+
+    // Note: event detection is handled by updateSTALTA (STA/LTA trigger),
+    // not here. processBatch only updates displacement values used by
+    // the fuzzy assessment after an event ends.
     return{results};
   }
   function resetNode(nodeId){const ns=state[nodeId];if(!ns)return;ns.cf=null;['x','y','z'].forEach(axis=>{ns[axis]=makeAxisState();});nodes[nodeId].latestVD={};}
