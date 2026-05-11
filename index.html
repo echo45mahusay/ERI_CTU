@@ -600,12 +600,12 @@ body {
         <div class="config-item">
           <label class="config-label">Trigger Threshold (m/s²)</label>
           <input type="number" class="config-input" id="triggerAccel" value="1.0" step="0.05" min="0.1" max="20.0">
-          <p class="config-help">TF resultant above this starts recording an event. Normal ≈ 0.75 m/s².</p>
+          <p class="config-help">TF resultant above this starts recording an event. Normal ≈ 0.8 m/s².</p>
         </div>
         <div class="config-item">
           <label class="config-label">Normal Range (m/s²)</label>
-          <input type="number" class="config-input" id="baselineAccel" value="0.75" step="0.05" min="0.1" max="10.0">
-          <p class="config-help">Fallback baseline used until auto-calibration collects enough samples (expected: 0.7–0.8 m/s²). Auto-calibration updates this live from idle readings.</p>
+          <input type="number" class="config-input" id="baselineAccel" value="0.80" step="0.05" min="0.1" max="10.0">
+          <p class="config-help">Fallback baseline used until auto-calibration collects enough samples (expected: 0.7–0.9 m/s²). Auto-calibration updates this live from idle readings.</p>
         </div>
         <div class="config-item">
           <label class="config-label">Structure Name</label>
@@ -984,16 +984,16 @@ let mqttClient=null, reconnectTimer=null, reconnectDelay=2000;
 let historyReceived={events:false}, snapshotTimer=null;
 let THRESHOLD_STALTA=3.0, BUFFER_DURATION=5; // THRESHOLD_STALTA kept for STA/LTA bar display only
 let TRIGGER_ACCEL=1.0;   // TF resultant (m/s²) above this starts recording
-let BASELINE_ACCEL=0.75;  // fallback baseline if no calibration data yet
+let BASELINE_ACCEL=0.80;  // fallback baseline if no calibration data yet
 const TRIGGER_COUNT   = 2;   // consecutive readings above trigger to latch
 const BASELINE_COUNT  = 3;   // consecutive readings at/below baseline to close
 const NORMAL_WIN      = 30;  // rolling window size for normal baseline (samples)
-const NORMAL_LOW      = 0.65; // expected normal range lower bound (m/s²)
-const NORMAL_HIGH     = 0.85; // expected normal range upper bound (m/s²)
+const NORMAL_LOW      = 0.70; // expected normal range lower bound (m/s²)
+const NORMAL_HIGH     = 0.90; // expected normal range upper bound (m/s²)
 let _triggerHits   = 0;   // running count of above-trigger readings
 let _baselineHits  = 0;   // running count of at/below-baseline readings
 let _normalRing    = [];  // rolling array of idle TF resultant readings
-let _dynamicBase   = 0.75; // computed dynamic baseline (mean of _normalRing)
+let _dynamicBase   = 0.80; // computed dynamic baseline (mean of _normalRing)
 let _dynamicTrigger= 1.0; // computed dynamic trigger (baseline + margin)
 let DISP_LIMIT_MM=12.5;
 
