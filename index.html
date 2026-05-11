@@ -1153,9 +1153,10 @@ function publishSnapshots(){
   } else {
     mqttClient.publish(TOPIC_PERSIST_EVENTS,payload,{retain:true,qos:1});
   }
-  setSyncBadge('synced','History: Synced ✓');
+  // Only update badge if we're not mid-restore (prevents flicker)
+  if(historyReceived.events) setSyncBadge('synced','History: Synced ✓');
 }
-function scheduleSnapshot(){if(snapshotTimer)return;snapshotTimer=setTimeout(()=>{publishSnapshots();snapshotTimer=null;},30000);}
+function scheduleSnapshot(){if(snapshotTimer)return;snapshotTimer=setTimeout(()=>{publishSnapshots();snapshotTimer=null;},60000);}
 function restoreSnapshot(nodeId,payload){
   try{
     const snap=JSON.parse(payload),node=nodes[nodeId];
@@ -1207,10 +1208,6 @@ function restoreEvents(payload){
   try{updateHistoryUI();}catch(e){console.error('[persist] updateHistoryUI failed:',e);}
   try{updateStoryEventTable();}catch(e){console.error('[persist] updateStoryEventTable failed:',e);}
   setSyncBadge('synced',`History: ${unsafeEvents.length} event${unsafeEvents.length!==1?'s':''} loaded`);
-  // Republish clean state back to broker immediately after restore.
-  // This overwrites any corrupt/truncated retained message with the
-  // successfully hydrated events so the next session restores cleanly.
-  setTimeout(publishSnapshots, 2000);
 }
 function serializeEvent(ev){return{...ev,timestamp:ev.timestamp.toISOString(),endTime:ev.endTime.toISOString(),node1Data:ev.node1Data.map(d=>({...d,timestamp:d.timestamp.toISOString()})),node2Data:ev.node2Data.map(d=>({...d,timestamp:d.timestamp.toISOString()}))};}
 function hydrateEvent(raw){return{...raw,timestamp:new Date(raw.timestamp),endTime:new Date(raw.endTime),node1Data:(raw.node1Data||[]).map(d=>({...d,timestamp:new Date(d.timestamp)})),node2Data:(raw.node2Data||[]).map(d=>({...d,timestamp:new Date(d.timestamp)}))}}
@@ -1251,13 +1248,15 @@ function onConnect(){
   mqttClient.subscribe(TOPIC_STATUS,{qos:0});
   // If no retained persist message arrives within 5s, assume broker has no history.
   // Without this the badge stays on "Loading…" forever on a fresh deployment.
+  // After 8s (up from 5s), if no retained message arrived, mark as fresh start.
+  // 8s gives the broker enough time to deliver even on a slow connection.
   setTimeout(()=>{
     if(!historyReceived.events){
       historyReceived.events=true;
       setSyncBadge('synced','History: No prior events');
-      console.log('[persist] No retained history received within 5s — fresh start');
+      console.log('[persist] No retained history after 8s — treating as fresh start');
     }
-  },5000);
+  },8000);
   toast('Connected to HiveMQ Cloud','success');
 }
 function onMessage(topic,payload){
@@ -1717,7 +1716,7 @@ function updateHistoryUI(){
     </div>`;
   }).join('');
   list.innerHTML=html;
-  unsafeEvents.forEach(ev=>renderEventChart(ev));
+  unsafeEvents.forEach(ev=>{ try{renderEventChart(ev);}catch(e){console.warn('[chart] renderEventChart failed for event',ev.id,e);} });
 }
 
 function renderEventChart(event){
