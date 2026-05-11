@@ -1124,6 +1124,13 @@ function buildSnapshot(nodeId){
 }
 function publishSnapshots(){
   if(!mqttClient||!mqttClient.connected) return;
+  // CRITICAL: never publish until history has been restored from broker.
+  // If we publish before restoreEvents() runs, we overwrite the broker's
+  // retained events with an empty array and lose all history permanently.
+  if(!historyReceived.events){
+    console.log('[persist] Skipping snapshot — history not yet restored');
+    return;
+  }
   ['node1','node2'].forEach(nodeId=>{
     mqttClient.publish(`eri/persist/${nodeId}/raw`,JSON.stringify(buildSnapshot(nodeId)),{retain:true,qos:1});
   });
@@ -1191,14 +1198,19 @@ function restoreEvents(payload){
       console.log(`[persist] Restored ${unsafeEvents.length}/${arr.length} events`);
     }
   }catch(e){
-    console.warn('[persist] events payload parse failed:',e);
-    // Payload may be truncated (too large) — clear corrupted state
-    unsafeEvents=[];
+    console.warn('[persist] events payload parse failed — keeping existing events:',e);
+    // Do NOT clear unsafeEvents on parse failure. If the payload is corrupt,
+    // we keep whatever events are currently in memory. The next publishSnapshots()
+    // will overwrite the broker with the clean in-memory state.
   }
   historyReceived.events=true;
   try{updateHistoryUI();}catch(e){console.error('[persist] updateHistoryUI failed:',e);}
   try{updateStoryEventTable();}catch(e){console.error('[persist] updateStoryEventTable failed:',e);}
   setSyncBadge('synced',`History: ${unsafeEvents.length} event${unsafeEvents.length!==1?'s':''} loaded`);
+  // Republish clean state back to broker immediately after restore.
+  // This overwrites any corrupt/truncated retained message with the
+  // successfully hydrated events so the next session restores cleanly.
+  setTimeout(publishSnapshots, 2000);
 }
 function serializeEvent(ev){return{...ev,timestamp:ev.timestamp.toISOString(),endTime:ev.endTime.toISOString(),node1Data:ev.node1Data.map(d=>({...d,timestamp:d.timestamp.toISOString()})),node2Data:ev.node2Data.map(d=>({...d,timestamp:d.timestamp.toISOString()}))};}
 function hydrateEvent(raw){return{...raw,timestamp:new Date(raw.timestamp),endTime:new Date(raw.endTime),node1Data:(raw.node1Data||[]).map(d=>({...d,timestamp:new Date(d.timestamp)})),node2Data:(raw.node2Data||[]).map(d=>({...d,timestamp:new Date(d.timestamp)}))}}
@@ -1570,7 +1582,13 @@ function endUnsafeEvent(endTime){
   };
   event.fuzzy=Fuzzy.assess(event.duration, peakStoryDriftMm>0 ? peakStoryDriftMm : 0);
   unsafeEvents.unshift(event);
-  updateHistoryUI();updateStoryEventTable();publishSnapshots();
+  updateHistoryUI();updateStoryEventTable();
+  // Publish immediately when a new event is recorded — don't wait for
+  // the 30s snapshot timer. Force historyReceived=true first so the
+  // guard in publishSnapshots() doesn't block us (we have the event,
+  // there's nothing to restore that we don't already have in memory).
+  historyReceived.events=true;
+  publishSnapshots();
   updateFuzzyHero(event.fuzzy);
   const fzLabel=event.fuzzy?` 🧠 ${event.fuzzy.status} (${event.fuzzy.confidence.toFixed(0)}%)` :'';
   const driftLabel=peakStoryDriftMm>0?`${peakStoryDriftMm.toFixed(3)} mm`:'—';
@@ -1797,12 +1815,12 @@ function updateStoryEventTable(){
       <th style="text-align:right;padding:.5rem .75rem">Confidence</th>
     </tr></thead><tbody>`;
   unsafeEvents.forEach(ev=>{
-    const fz=ev.fuzzy||Fuzzy.assess(ev.duration,ev.peakStoryDriftMm??ev.peakDisplacementMm??0); // TF disp
-    const pd=_peakDrift; // TF displacement
-    const ratio=pd/DISP_LIMIT_MM;
-    const dClass=ratio<1?'BT':ratio<1.5?'SAT':'GAT';
-    const dColor=dClass==='BT'?'var(--accent-green)':dClass==='SAT'?'var(--accent-yellow)':'var(--accent-red)';
-    const fColor=fz.status==='SAFE'?'var(--accent-green)':fz.status==='UNSAFE'?'var(--accent-red)':'var(--accent-yellow)';
+    const pd = ev.peakStoryDriftMm ?? ev.peakDisplacementMm ?? 0; // TF relative displacement
+    const fz = ev.fuzzy || Fuzzy.assess(ev.duration, pd);
+    const ratio  = pd / DISP_LIMIT_MM;
+    const dClass = ratio<1 ? 'BT' : ratio<1.5 ? 'SAT' : 'GAT';
+    const dColor = dClass==='BT'?'var(--accent-green)':dClass==='SAT'?'var(--accent-yellow)':'var(--accent-red)';
+    const fColor = fz.status==='SAFE'?'var(--accent-green)':fz.status==='UNSAFE'?'var(--accent-red)':'var(--accent-yellow)';
     html+=`<tr style="border-bottom:1px solid var(--border-color)">
       <td style="padding:.5rem .75rem;color:var(--accent-red)">#${ev.seqNum||ev.id}</td>
       <td style="padding:.5rem .75rem;color:var(--text-secondary)">${ev.timestamp.toLocaleString()}</td>
