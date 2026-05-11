@@ -598,9 +598,14 @@ body {
       <div class="config-grid">
 
         <div class="config-item">
-          <label class="config-label">STA/LTA Alert Ratio</label>
-          <input type="number" class="config-input" id="thresholdSTALTA" value="3.0" step="0.1" min="1.0" max="10.0">
-          <p class="config-help">Ratio above this highlights the STA/LTA detection bar in red</p>
+          <label class="config-label">Trigger Threshold (m/s²)</label>
+          <input type="number" class="config-input" id="triggerAccel" value="1.0" step="0.05" min="0.1" max="20.0">
+          <p class="config-help">TF resultant above this starts recording an event. Normal ≈ 0.6 m/s².</p>
+        </div>
+        <div class="config-item">
+          <label class="config-label">Normal Range (m/s²)</label>
+          <input type="number" class="config-input" id="baselineAccel" value="0.6" step="0.05" min="0.1" max="10.0">
+          <p class="config-help">Fallback baseline used until auto-calibration collects enough samples (expected: 0.6–0.7 m/s²). Auto-calibration updates this live from idle readings.</p>
         </div>
         <div class="config-item">
           <label class="config-label">Structure Name</label>
@@ -609,9 +614,10 @@ body {
         </div>
         <div class="config-item">
           <label class="config-label">Buffer Duration (seconds)</label>
-          <input type="number" class="config-input" id="bufferDuration" value="5" step="1" min="3" max="30">
-          <p class="config-help">Record data ±N seconds around detected unsafe events</p>
+          <input type="number" class="config-input" id="bufferDuration" value="5" step="1" min="1" max="30">
+          <p class="config-help">Record data ±N seconds before and after the event window</p>
         </div>
+
         <div class="config-item">
           <label class="config-label">Displacement Limit — d_lim (mm)</label>
           <input type="number" class="config-input" id="dispLimit" value="12.5" step="0.5" min="1" max="100">
@@ -976,7 +982,19 @@ function updateAllCharts(nodeId) {
 // ══════════════════════════════════════════════════════════════
 let mqttClient=null, reconnectTimer=null, reconnectDelay=2000;
 let historyReceived={events:false}, snapshotTimer=null;
-let THRESHOLD_STALTA=3.0, BUFFER_DURATION=5;
+let THRESHOLD_STALTA=3.0, BUFFER_DURATION=5; // THRESHOLD_STALTA kept for STA/LTA bar display only
+let TRIGGER_ACCEL=1.0;   // TF resultant (m/s²) above this starts recording
+let BASELINE_ACCEL=0.6;  // fallback baseline if no calibration data yet
+const TRIGGER_COUNT   = 2;   // consecutive readings above trigger to latch
+const BASELINE_COUNT  = 3;   // consecutive readings at/below baseline to close
+const NORMAL_WIN      = 30;  // rolling window size for normal baseline (samples)
+const NORMAL_LOW      = 0.55; // expected normal range lower bound (m/s²)
+const NORMAL_HIGH     = 0.75; // expected normal range upper bound (m/s²)
+let _triggerHits   = 0;   // running count of above-trigger readings
+let _baselineHits  = 0;   // running count of at/below-baseline readings
+let _normalRing    = [];  // rolling array of idle TF resultant readings
+let _dynamicBase   = 0.6; // computed dynamic baseline (mean of _normalRing)
+let _dynamicTrigger= 1.0; // computed dynamic trigger (baseline + margin)
 let DISP_LIMIT_MM=12.5;
 
 const nodes = {
@@ -1286,7 +1304,7 @@ function updateStoryRing(n1d, n2d){
   }
   // Update story tab stats
   // Story drift = |D_topfloor - D_groundfloor| (relative displacement)
-  const drift=nodes.node1.currentStoryDriftMm||Math.abs(n2d-n1d);
+  const drift=nodes.node1.currentStoryDriftMm||n2d||0; // TF displacement
   const driftEl=document.getElementById('storyDrift');
   const driftBadge=document.getElementById('storyDriftBadge');
   if(driftEl) driftEl.textContent=drift.toFixed(3)+' mm';
@@ -1295,7 +1313,7 @@ function updateStoryRing(n1d, n2d){
   if(driftBadge){
     const ratio=drift/DISP_LIMIT_MM;
     if(ratio<1){driftBadge.textContent='BT';driftBadge.className='drift-badge ok';}
-    else if(ratio<1.025){driftBadge.textContent='SAT';driftBadge.className='drift-badge warning';}
+    else if(ratio<1.5){driftBadge.textContent='SAT';driftBadge.className='drift-badge warning';}
     else{driftBadge.textContent='GAT';driftBadge.className='drift-badge danger';}
   }
 }
@@ -1337,7 +1355,9 @@ function updateAccelData(nodeId,data){
   autoZoom.trigger(nodeId);
   try{ updateAllCharts(nodeId); }
   catch(e){ console.warn('[accel] updateAllCharts failed:',e); }
-  scheduleSnapshot(); // event detection handled by updateSTALTA
+  scheduleSnapshot();
+  // Detection now uses TF resultant — check on every accel update
+  if(nodeId==='node2') checkStructureStatus();
 }
 
 function updateSTALTA(nodeId,data){
@@ -1351,8 +1371,7 @@ function updateSTALTA(nodeId,data){
   const bar=document.getElementById(`${nodeId}STALTABar`);
   bar.style.width=pct+'%';
   bar.style.background=ratio>=THRESHOLD_STALTA?'var(--accent-red)':ratio>=THRESHOLD_STALTA*0.7?'var(--accent-yellow)':'var(--accent-green)';
-  // STA/LTA is the earthquake detector — check for event trigger on every update
-  checkStructureStatus();
+  // STA/LTA bar display only — detection is now TF resultant based
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -1367,7 +1386,9 @@ function updateFuzzyHero(fz){
   const hero=document.getElementById('fuzzyHero');
   verdict.textContent=fz.status;
   verdict.className='fuzzy-hero-verdict '+fz.status;
-  conf.textContent=`Confidence: ${fz.confidence.toFixed(1)}% · Centroid: ${fz.centroid.toFixed(3)}`;
+  const ruleAgr = fz.ruleAgreement!=null&&!isNaN(fz.ruleAgreement) ? ` · Rule agree: ${(fz.ruleAgreement*100).toFixed(0)}%` : '';
+  const inpCert = fz.inputCertainty!=null&&!isNaN(fz.inputCertainty) ? ` · Input cert: ${(fz.inputCertainty*100).toFixed(0)}%` : '';
+  conf.textContent=`Confidence: ${fz.confidence.toFixed(1)}%${ruleAgr}${inpCert}`;
   bar.style.width=fz.confidence+'%';
   bar.className='fuzzy-conf-bar '+(fz.status==='SAFE'?'':''+fz.status);
   const confLevel=fz.confidence>=75?'High Confidence':fz.confidence>=40?'Moderate Confidence':'Low Confidence';
@@ -1378,55 +1399,162 @@ function updateFuzzyHero(fz){
 // ══════════════════════════════════════════════════════════════
 //  THRESHOLD & EVENT DETECTION
 // ══════════════════════════════════════════════════════════════
-function checkStructureStatus(){
-  // ── Detection: STA/LTA from either node triggers the event window ──────────
-  // STA/LTA is the seismological standard for earthquake onset detection.
-  // When either node's ratio ≥ THRESHOLD_STALTA, an earthquake is in progress.
-  // The event window is held open as long as at least one node stays triggered.
-  // On window close, peak story drift from the capture is fed into the fuzzy rules.
-  const n1Ready = nodes.node1.ltaReady || false;
-  const n2Ready = nodes.node2.ltaReady || false;
-  const n1Trig  = n1Ready && (nodes.node1.staLtaRatio||0) >= THRESHOLD_STALTA;
-  const n2Trig  = n2Ready && (nodes.node2.staLtaRatio||0) >= THRESHOLD_STALTA;
-  const detected = n1Trig || n2Trig;
-
-  const storyDrift = nodes.node1.currentStoryDriftMm || 0;
-  const card=document.getElementById('overallStatusCard'),
-        valEl=document.getElementById('overallStatusValue'),
-        infoEl=document.getElementById('overallStatusInfo');
-
-  if(detected){
-    if(eventEndTimeout){clearTimeout(eventEndTimeout);eventEndTimeout=null;}
-    if(structureStatus==='SAFE'){structureStatus='UNSAFE';startUnsafeEvent();}
-    card.classList.add('unsafe');
-    valEl.textContent='UNSAFE';valEl.className='overall-status-value unsafe';
-    const trigNode = n1Trig&&n2Trig?'Both nodes':n1Trig?'Ground Floor':'Top Floor';
-    const ratioStr = Math.max(nodes.node1.staLtaRatio||0, nodes.node2.staLtaRatio||0).toFixed(2);
-    infoEl.textContent=`⚠️ Earthquake detected! STA/LTA: ${ratioStr} (${trigNode}) · Story Drift: ${storyDrift.toFixed(3)} mm`;
-    document.getElementById('statusInfo').textContent='⚠️ Earthquake detected — Recording event…';
-  }else{
-    if(structureStatus==='UNSAFE'&&!eventEndTimeout){
-      const endTime=new Date();
-      eventEndTimeout=setTimeout(()=>{endUnsafeEvent(endTime);eventEndTimeout=null;},BUFFER_DURATION*1000);
+// ── Dynamic Baseline Calibration ─────────────────────────────────────────────
+// While the system is SAFE (not recording), collect TF resultant readings that
+// fall within the expected normal range (NORMAL_LOW–NORMAL_HIGH). Keep a
+// rolling window of the last NORMAL_WIN readings and compute the mean.
+// This mean becomes the dynamic baseline. The trigger is set to baseline + margin.
+// Result: the system self-calibrates to your specific sensor and mounting position.
+function updateNormalBaseline(tfMag){
+  if(structureStatus!=='SAFE') return; // only collect idle readings
+  if(tfMag>=NORMAL_LOW && tfMag<=NORMAL_HIGH){
+    _normalRing.push(tfMag);
+    if(_normalRing.length>NORMAL_WIN) _normalRing.shift();
+    if(_normalRing.length>=5){ // need at least 5 samples before trusting the mean
+      _dynamicBase    = _normalRing.reduce((a,b)=>a+b,0)/_normalRing.length;
+      _dynamicTrigger = _dynamicBase + 0.35; // trigger = baseline + 0.35 m/s² margin
+      BASELINE_ACCEL  = parseFloat((_dynamicBase + 0.05).toFixed(4)); // close threshold = baseline + 5%
     }
-    structureStatus='SAFE';
+  }
+  // Update the baseline display in the status bar
+  const el = document.getElementById('dynamicBaseDisplay');
+  if(el) el.textContent = `Base: ${_dynamicBase.toFixed(3)} m/s² (n=${_normalRing.length})`;
+}
+
+function checkStructureStatus(){
+  // ── TF Resultant Acceleration Trigger with Debounce ───────────────────────
+  //
+  // Debounce prevents a single noisy reading from:
+  //   - Falsely starting an event (trigger debounce: need TRIGGER_COUNT
+  //     consecutive readings above TRIGGER_ACCEL)
+  //   - Prematurely closing an event (baseline debounce: need BASELINE_COUNT
+  //     consecutive readings at/below BASELINE_ACCEL)
+  //
+  // At 1 Hz this means:
+  //   TRIGGER_COUNT=2  → 2 consecutive seconds above trigger  → latch
+  //   BASELINE_COUNT=3 → 3 consecutive seconds at baseline    → close
+  //
+  // State:
+  //   SAFE    → debounced trigger fires → LATCHED → startUnsafeEvent()
+  //   LATCHED → above baseline          → keep recording
+  //   LATCHED → debounced baseline fires → endUnsafeEvent()
+
+  const tfMag      = nodes.node2.currentMagnitude || 0;
+  const storyDrift = nodes.node1.currentStoryDriftMm || 0;
+  const card  = document.getElementById('overallStatusCard');
+  const valEl = document.getElementById('overallStatusValue');
+  const infoEl= document.getElementById('overallStatusInfo');
+  const sbEl  = document.getElementById('statusInfo');
+
+  if(structureStatus==='SAFE'){
+    // ── Waiting to trigger ─────────────────────────────────────
+    // Update rolling normal baseline from idle readings
+    updateNormalBaseline(tfMag);
+    // Use dynamic trigger if calibrated, else fall back to TRIGGER_ACCEL config
+    const activeTrigger = _normalRing.length>=5 ? _dynamicTrigger : TRIGGER_ACCEL;
+    if(tfMag > activeTrigger){
+      _triggerHits++;
+      _baselineHits = 0;
+      if(_triggerHits >= TRIGGER_COUNT){
+        _triggerHits = 0;
+        structureStatus = 'UNSAFE';
+        startUnsafeEvent();
+        console.log(`[ERI] Latched — TF ${tfMag.toFixed(3)} m/s² > ${activeTrigger.toFixed(3)} (dynamic trigger)`);
+      }
+    } else {
+      _triggerHits = 0;
+    }
     card.classList.remove('unsafe');
-    valEl.textContent='SAFE';valEl.className='overall-status-value safe';
-    infoEl.textContent=`No earthquake detected · Story Drift: ${storyDrift.toFixed(3)} mm / d_lim: ${DISP_LIMIT_MM} mm`;
-    document.getElementById('statusInfo').textContent=`Monitoring · STA/LTA threshold: ${THRESHOLD_STALTA}`;
+    valEl.textContent='SAFE'; valEl.className='overall-status-value safe';
+    const calibStr = _normalRing.length>=5
+      ? `Base: ${_dynamicBase.toFixed(3)} m/s² · Trigger: ${activeTrigger.toFixed(3)} m/s² (n=${_normalRing.length})`
+      : `Calibrating… ${_normalRing.length}/${NORMAL_WIN} samples · Trigger: ${TRIGGER_ACCEL} m/s²`;
+    infoEl.textContent=`No earthquake · TF: ${tfMag.toFixed(3)} m/s² · Drift: ${storyDrift.toFixed(3)} mm / d_lim: ${DISP_LIMIT_MM} mm`;
+    sbEl.textContent=`Monitoring · ${calibStr}${_triggerHits>0?' · Trigger hits: '+_triggerHits+'/'+TRIGGER_COUNT:''}`;
+
+  }else if(structureStatus==='UNSAFE'&&isRecordingEvent){
+    const closeThreshold = _normalRing.length>=5 ? BASELINE_ACCEL : 0.65;
+    if(tfMag <= closeThreshold){
+      // Below baseline — increment debounce counter
+      _baselineHits++;
+      _triggerHits = 0;
+      if(_baselineHits >= BASELINE_COUNT){
+        // Enough consecutive at-baseline readings — close event
+        _baselineHits = 0;
+        const endTime = new Date();
+        console.log(`[ERI] Baseline confirmed — TF ≤${BASELINE_ACCEL} for ${BASELINE_COUNT} readings, closing`);
+        endUnsafeEvent(endTime);
+      } else {
+        // Not enough yet — keep recording, show countdown
+        card.classList.add('unsafe');
+        valEl.textContent='UNSAFE'; valEl.className='overall-status-value unsafe';
+        infoEl.textContent=`📉 Settling… TF: ${tfMag.toFixed(3)} m/s² · confirming baseline (${_baselineHits}/${BASELINE_COUNT})`;
+        sbEl.textContent=`📉 Baseline check ${_baselineHits}/${BASELINE_COUNT} — confirming ≤${BASELINE_ACCEL} m/s²`;
+      }
+    } else {
+      // Still above baseline — reset baseline counter, keep recording
+      _baselineHits = 0;
+      card.classList.add('unsafe');
+      valEl.textContent='UNSAFE'; valEl.className='overall-status-value unsafe';
+      infoEl.textContent=`⚠️ Recording… TF: ${tfMag.toFixed(3)} m/s² · baseline ≤${BASELINE_ACCEL} m/s² · Drift: ${storyDrift.toFixed(3)} mm`;
+      sbEl.textContent=`⚠️ Recording — TF: ${tfMag.toFixed(3)} m/s² · waiting for ≤${BASELINE_ACCEL} m/s²`;
+    }
+
+  }else{
+    card.classList.remove('unsafe');
+    valEl.textContent='SAFE'; valEl.className='overall-status-value safe';
+    infoEl.textContent=`No earthquake · TF: ${tfMag.toFixed(3)} m/s² · Drift: ${storyDrift.toFixed(3)} mm / d_lim: ${DISP_LIMIT_MM} mm`;
+    sbEl.textContent=`Monitoring · Trigger: ${TRIGGER_ACCEL} m/s² · Baseline: ${BASELINE_ACCEL} m/s²`;
   }
 }
-function startUnsafeEvent(){isRecordingEvent=true;eventStartTime=new Date();}
+function startUnsafeEvent(){isRecordingEvent=true;eventStartTime=new Date();if(eventEndTimeout){clearTimeout(eventEndTimeout);eventEndTimeout=null;}}
 function endUnsafeEvent(endTime){
   if(!isRecordingEvent) return;
   isRecordingEvent=false;
+  structureStatus='SAFE'; // reset so checkStructureStatus returns to safe state
   const bufMs=BUFFER_DURATION*1000,captureStart=new Date(eventStartTime.getTime()-bufMs),captureEnd=new Date(endTime.getTime()+bufMs);
   const node1Data=nodes.node1.dataBuffer.filter(d=>d.timestamp>=captureStart&&d.timestamp<=captureEnd);
   const node2Data=nodes.node2.dataBuffer.filter(d=>d.timestamp>=captureStart&&d.timestamp<=captureEnd);
   const allMags=[...node1Data,...node2Data].map(d=>d.magnitude);
   const eventMax=allMags.length>0?Math.max(...allMags):0;
-  // Peak story drift = relative displacement (TF − GF) during the event
-  const peakStoryDriftMm = nodes.node1.peakStoryDriftMmSinceEvent || 0;
+  // ── Compute peak relative displacement (TF − GF) per sample ────────────
+  // For each timestamp where both nodes have a dispMag reading, compute
+  // the relative displacement = dispMag_TF - dispMag_GF.
+  // Take the MAXIMUM of this difference across all samples in the event window.
+  // This is the true storey relative displacement — how much more the top
+  // floor moved compared to the ground floor at the same moment.
+  //
+  // dataBuffer dispMag is stored in metres (from latestVD.dmag/1000),
+  // so multiply by 1000 to get mm.
+  //
+  // Both nodes' dataBuffers are already filtered to the event window
+  // (±BUFFER_DURATION seconds) by the buffer size limit.
+  // Use the already-windowed node1Data/node2Data (±BUFFER_DURATION seconds)
+  // — NOT the full dataBuffer which includes samples outside the event window.
+  const tfBuf = node2Data.filter(d=>d.dispMag!=null);
+  const gfBuf = node1Data.filter(d=>d.dispMag!=null);
+  let peakStoryDriftMm = 0;
+  if(tfBuf.length>0 && gfBuf.length>0){
+    // For each TF sample, find the closest-in-time GF sample and compute
+    // relative displacement = max(0, dispMag_TF - dispMag_GF) in mm.
+    const relDisps = tfBuf.map(tf=>{
+      const tfMm = tf.dispMag * 1000;
+      const tfMs = tf.timestamp.getTime();
+      let closest = gfBuf[0], minDiff = Infinity;
+      for(const gf of gfBuf){
+        const diff = Math.abs(gf.timestamp.getTime() - tfMs);
+        if(diff < minDiff){ minDiff = diff; closest = gf; }
+      }
+      const gfMm = closest.dispMag * 1000;
+      return Math.max(0, tfMm - gfMm);
+    });
+    peakStoryDriftMm = Math.max(...relDisps);
+  } else if(tfBuf.length>0){
+    // Only TF data in window — use TF absolute peak as fallback
+    peakStoryDriftMm = Math.max(...tfBuf.map(d=>d.dispMag*1000));
+  } else {
+    peakStoryDriftMm = 0;
+  }
   nodes.node1.peakStoryDriftMmSinceEvent=0; nodes.node2.peakStoryDriftMmSinceEvent=0;
   nodes.node1.peakDispMmSinceEvent=0;       nodes.node2.peakDispMmSinceEvent=0;
   const event={
@@ -1446,19 +1574,21 @@ function endUnsafeEvent(endTime){
   updateFuzzyHero(event.fuzzy);
   const fzLabel=event.fuzzy?` 🧠 ${event.fuzzy.status} (${event.fuzzy.confidence.toFixed(0)}%)` :'';
   const driftLabel=peakStoryDriftMm>0?`${peakStoryDriftMm.toFixed(3)} mm`:'—';
-  toast(`⚠️ Event #${event.seqNum} — Story Drift: ${driftLabel} · ${event.duration.toFixed(1)}s${fzLabel}`,'warn',7000);
+  toast(`⚠️ Event #${event.seqNum} — TF Disp: ${driftLabel} · ${event.duration.toFixed(1)}s${fzLabel}`,'warn',7000);
 }
 
 // ══════════════════════════════════════════════════════════════
 //  CONFIG
 // ══════════════════════════════════════════════════════════════
 function applyThreshold(){
-  THRESHOLD_STALTA=parseFloat(document.getElementById('thresholdSTALTA').value)||3.0;
-  BUFFER_DURATION =parseInt(document.getElementById('bufferDuration').value)||5;
-  DISP_LIMIT_MM   =parseFloat(document.getElementById('dispLimit').value)||12.5;
+  THRESHOLD_STALTA =parseFloat(document.getElementById('thresholdSTALTA')?.value)||3.0; // for STA/LTA bar only
+  TRIGGER_ACCEL    =parseFloat(document.getElementById('triggerAccel').value)||1.0;
+  BASELINE_ACCEL   =parseFloat(document.getElementById('baselineAccel').value)||0.6;
+  BUFFER_DURATION  =parseInt(document.getElementById('bufferDuration').value)||5;
+  DISP_LIMIT_MM    =parseFloat(document.getElementById('dispLimit').value)||12.5;
   document.getElementById('driftLimDisp').textContent=DISP_LIMIT_MM.toFixed(1);
   const fb=document.getElementById('configApplied');fb.classList.add('show');setTimeout(()=>fb.classList.remove('show'),2500);
-  toast(`Config applied · d_lim: ${DISP_LIMIT_MM} mm · STA/LTA: ${THRESHOLD_STALTA}`,'success');
+  toast(`Config applied · Trigger: ${TRIGGER_ACCEL} m/s² · Baseline: ${BASELINE_ACCEL} m/s² · d_lim: ${DISP_LIMIT_MM} mm`,'success');
   checkStructureStatus();
 }
 
@@ -1486,6 +1616,7 @@ function clearAllData(){
   chartRing.node2 = makeChartRing();
   nodes.node1.latestVD = {}; nodes.node2.latestVD = {};
   SignalProcessor.resetNode('node1');SignalProcessor.resetNode('node2');
+  _triggerHits=0;_baselineHits=0;_normalRing=[];_dynamicBase=0.6;_dynamicTrigger=1.0;
   nodes.node1.peakDispMmSinceEvent=0;nodes.node2.peakDispMmSinceEvent=0;
   storyRing.t.length=0;storyRing.n1.length=0;storyRing.n2.length=0;storyRing.lim.length=0;
   if(storyDispChart){storyDispChart.data.labels=[];storyDispChart.data.datasets.forEach(d=>d.data=[]);storyDispChart.update();}
@@ -1511,7 +1642,7 @@ function updateHistoryUI(){
     const n1DispMin =n1DispVals.length?Math.min(...n1DispVals).toFixed(3):'N/A';
     const n2DispMin =n2DispVals.length?Math.min(...n2DispVals).toFixed(3):'N/A';
     const seqLabel=ev.seqNum||ev.id;
-    if(!ev.fuzzy) ev.fuzzy=Fuzzy.assess(ev.duration,ev.peakDisplacementMm||0);
+    if(!ev.fuzzy) ev.fuzzy=Fuzzy.assess(ev.duration,ev.peakStoryDriftMm??ev.peakDisplacementMm??0);
     const fzStatus=ev.fuzzy?ev.fuzzy.status:'—';
     const fzConf=ev.fuzzy?ev.fuzzy.confidence.toFixed(1)+'%':'—';
     const fzColor=fzStatus==='SAFE'?'rgba(0,229,160,.12)':fzStatus==='UNSAFE'?'rgba(255,68,85,.1)':'rgba(255,196,64,.1)';
@@ -1531,7 +1662,7 @@ function updateHistoryUI(){
       <!-- ── Stat strip ── -->
       <div class="history-details">
         <div class="history-detail"><div class="history-detail-label">Duration</div><div class="history-detail-value">${ev.duration.toFixed(1)} s</div></div>
-        <div class="history-detail"><div class="history-detail-label">Peak Story Drift (Δ)</div><div class="history-detail-value">${peakDispStr}</div></div>
+        <div class="history-detail"><div class="history-detail-label">Peak Relative Disp (TF−GF)</div><div class="history-detail-value">${peakDispStr}</div></div>
         <div class="history-detail"><div class="history-detail-label">🏢 GF Peak Disp</div><div class="history-detail-value">${n1DispPeak} mm</div></div>
         <div class="history-detail"><div class="history-detail-label">🏗️ TF Peak Disp</div><div class="history-detail-value">${n2DispPeak} mm</div></div>
         <div class="history-detail"><div class="history-detail-label">Total Samples</div><div class="history-detail-value">${ev.node1Data.length+ev.node2Data.length}</div></div>
@@ -1580,12 +1711,24 @@ function renderEventChart(event){
   const sortedMs=Array.from(timeSet).sort((a,b)=>a-b);
   if(sortedMs.length===0){const ctx=canvas.getContext('2d');ctx.fillStyle='#525d6e';ctx.font='12px monospace';ctx.textAlign='center';ctx.fillText('No data captured',canvas.width/2,canvas.height/2);return;}
   const labels=sortedMs.map(ms=>((ms-captureStartMs)/1000).toFixed(1)+'s');
-  // Use displacement magnitude (mm). dispMag stored in metres → convert to mm.
+  // Build per-timestamp dispMag maps (metres → mm)
   const n1Map={},n2Map={};
   event.node1Data.forEach(d=>{n1Map[d.timestamp.getTime()]=d.dispMag!=null?d.dispMag*1000:null;});
   event.node2Data.forEach(d=>{n2Map[d.timestamp.getTime()]=d.dispMag!=null?d.dispMag*1000:null;});
-  const n1Values=sortedMs.map(ms=>n1Map[ms]!==undefined?n1Map[ms]:null);
-  const n2Values=sortedMs.map(ms=>n2Map[ms]!==undefined?n2Map[ms]:null);
+  // Plot RELATIVE displacement (TF − GF) for TF line so chart matches fuzzy input.
+  // GF line shows absolute GF displacement as the reference baseline.
+  const n1Values=sortedMs.map(ms=>n1Map[ms]!==undefined?n1Map[ms]:null); // GF absolute
+  const n2Values=sortedMs.map(ms=>{                                        // TF relative
+    const tf=n2Map[ms]!==undefined?n2Map[ms]:null;
+    if(tf===null) return null;
+    // Find closest GF value in time
+    const msNum=Number(ms);
+    const gfKeys=Object.keys(n1Map).map(Number).filter(k=>n1Map[k]!==null);
+    if(gfKeys.length===0) return tf;
+    const closestGf=gfKeys.reduce((a,b)=>Math.abs(b-msNum)<Math.abs(a-msNum)?b:a);
+    const gf=n1Map[closestGf];
+    return gf!=null ? Math.max(0, tf-gf) : tf;
+  });
   // If all values are null (batch pipeline hadn't run yet), show a message
   const allNull=v=>v.every(x=>x===null);
   if(allNull(n1Values)&&allNull(n2Values)){
@@ -1606,8 +1749,8 @@ function renderEventChart(event){
     ctx.restore();
   }};
   eventCharts[event.id]=new Chart(canvas,{type:'line',plugins:[shadingPlugin],data:{labels,datasets:[
-    {label:'Ground Floor |D|',data:n1Values,borderColor:'#00d4ff',backgroundColor:'rgba(0,212,255,.08)',borderWidth:2,tension:.35,fill:false,pointRadius:3,pointHoverRadius:5,spanGaps:true},
-    {label:'Top Floor |D|',   data:n2Values,borderColor:'#b06aff',backgroundColor:'rgba(176,106,255,.08)',borderWidth:2,tension:.35,fill:false,pointRadius:3,pointHoverRadius:5,spanGaps:true},
+    {label:'Ground Floor |D| (ref)',data:n1Values,borderColor:'#00d4ff',backgroundColor:'rgba(0,212,255,.08)',borderWidth:2,tension:.35,fill:false,pointRadius:3,pointHoverRadius:5,spanGaps:true},
+    {label:'TF Relative Disp (TF−GF)',data:n2Values,borderColor:'#b06aff',backgroundColor:'rgba(176,106,255,.08)',borderWidth:2,tension:.35,fill:false,pointRadius:3,pointHoverRadius:5,spanGaps:true},
     {label:`d_lim (${DISP_LIMIT_MM} mm)`,data:dlim,borderColor:'rgba(255,201,64,.75)',borderWidth:1.5,borderDash:[6,4],pointRadius:0,fill:false,tension:0}
   ]},options:{responsive:true,maintainAspectRatio:false,animation:false,interaction:{mode:'index',intersect:false},
     plugins:{
@@ -1632,7 +1775,7 @@ function renderEventChart(event){
          title:{display:true,text:'Time from capture start (s)',color:'#525d6e',font:{size:9}}},
       y:{min:0,ticks:{color:'#525d6e',font:{family:'JetBrains Mono,monospace',size:10}},
          grid:{color:'rgba(255,255,255,.04)'},
-         title:{display:true,text:'Resultant Displacement |D| (mm)',color:'#525d6e',font:{size:10}}}
+         title:{display:true,text:'Displacement (mm) — TF relative to GF',color:'#525d6e',font:{size:10}}}
     }}});
 }
 
@@ -1654,10 +1797,10 @@ function updateStoryEventTable(){
       <th style="text-align:right;padding:.5rem .75rem">Confidence</th>
     </tr></thead><tbody>`;
   unsafeEvents.forEach(ev=>{
-    const fz=ev.fuzzy||Fuzzy.assess(ev.duration,ev.peakDisplacementMm||0);
-    const pd=ev.peakDisplacementMm||0;
+    const fz=ev.fuzzy||Fuzzy.assess(ev.duration,ev.peakStoryDriftMm??ev.peakDisplacementMm??0); // TF disp
+    const pd=_peakDrift; // TF displacement
     const ratio=pd/DISP_LIMIT_MM;
-    const dClass=ratio<1?'BT':ratio<1.025?'SAT':'GAT';
+    const dClass=ratio<1?'BT':ratio<1.5?'SAT':'GAT';
     const dColor=dClass==='BT'?'var(--accent-green)':dClass==='SAT'?'var(--accent-yellow)':'var(--accent-red)';
     const fColor=fz.status==='SAFE'?'var(--accent-green)':fz.status==='UNSAFE'?'var(--accent-red)':'var(--accent-yellow)';
     html+=`<tr style="border-bottom:1px solid var(--border-color)">
@@ -1698,8 +1841,8 @@ function exportEventCSV(eventId){
   const event=unsafeEvents.find(e=>e.id===eventId);if(!event)return;
   const buf=event.bufferDuration||BUFFER_DURATION;
   const allPts=[...event.node1Data.map(d=>({...d,nodeName:'Ground Floor'})),...event.node2Data.map(d=>({...d,nodeName:'Top Floor'}))].sort((a,b)=>a.timestamp-b.timestamp);
-  const fz=event.fuzzy||Fuzzy.assess(event.duration,event.peakDisplacementMm||0);
-  const rows=[['ERI - Unsafe Event #'+(event.seqNum||event.id)],['Structure',csvF(event.structureName)],['Event Start',csvF(event.timestamp.toLocaleString())],['Event End',csvF(event.endTime.toLocaleString())],['Duration_s',event.duration.toFixed(2)],['Peak_Story_Drift_mm',(event.peakDisplacementMm||0).toFixed(4)],['Buffer_s',buf],
+  const fz=event.fuzzy||Fuzzy.assess(event.duration,event.peakStoryDriftMm??event.peakDisplacementMm??0);
+  const rows=[['ERI - Unsafe Event #'+(event.seqNum||event.id)],['Structure',csvF(event.structureName)],['Event Start',csvF(event.timestamp.toLocaleString())],['Event End',csvF(event.endTime.toLocaleString())],['Duration_s',event.duration.toFixed(2)],['Peak_TF_Displacement_mm',(event.peakStoryDriftMm??event.peakDisplacementMm??0).toFixed(4)],['Buffer_s',buf],
     ['--- Fuzzy Assessment (Mamdani: Duration × Displacement) ---'],['Fuzzy_Status',fz.status],['Fuzzy_Confidence_pct',fz.confidence.toFixed(1)],['Fuzzy_Centroid',fz.centroid.toFixed(4)],['Fuzzy_Safe_Strength',fz.safeStr.toFixed(4)],['Fuzzy_Warn_Strength',fz.warnStr.toFixed(4)],['Fuzzy_Unsafe_Strength',fz.unsafeStr.toFixed(4)],['Exported',csvF(new Date().toLocaleString())],[],
     ['Timestamp','Epoch_ms','Node','Disp_mag_mm','Dx_mm','Dy_mm','Dz_mm']];
   allPts.forEach(d=>rows.push([csvF(d.timestamp.toLocaleString()),d.timestamp.getTime(),csvF(d.nodeName),(d.dispMag!=null?(d.dispMag*1000).toFixed(4):'N/A'),(d.dx!=null?(d.dx*1000).toFixed(4):'N/A'),(d.dy!=null?(d.dy*1000).toFixed(4):'N/A'),(d.dz!=null?(d.dz*1000).toFixed(4):'N/A')]));
@@ -1711,12 +1854,12 @@ function exportAllEventsCSV(){
   if(unsafeEvents.length===0){toast('No events to export','warn');return;}
   const structure=csvF(document.getElementById('structureName').value);
   const rows=[['ERI - All Unsafe Events Summary'],['Structure',structure],['Exported',csvF(new Date().toLocaleString())],['Total Events',unsafeEvents.length],[],
-    ['Event_ID','Start_Timestamp','End_Timestamp','Duration_s','Peak_Story_Drift_mm','Buffer_s','Ground_Samples','Top_Samples','Structure','Fuzzy_Status','Fuzzy_Confidence_pct','Fuzzy_Centroid','BT_SAT_GAT']];
+    ['Event_ID','Start_Timestamp','End_Timestamp','Duration_s','Peak_TF_Displacement_mm','Buffer_s','Ground_Samples','Top_Samples','Structure','Fuzzy_Status','Fuzzy_Confidence_pct','Fuzzy_Centroid','BT_SAT_GAT']];
   unsafeEvents.forEach(ev=>{
-    const fz=ev.fuzzy||Fuzzy.assess(ev.duration,ev.peakDisplacementMm||0);
-    const pd=ev.peakDisplacementMm||0,ratio=pd/DISP_LIMIT_MM;
-    const dClass=ratio<1?'BT':ratio<1.025?'SAT':'GAT';
-    rows.push([ev.seqNum||ev.id,csvF(ev.timestamp.toLocaleString()),csvF(ev.endTime.toLocaleString()),ev.duration.toFixed(2),( ev.peakStoryDriftMm!=null ? ev.peakStoryDriftMm : (ev.peakDisplacementMm||0) ).toFixed(4),ev.bufferDuration||BUFFER_DURATION,ev.node1Data.length,ev.node2Data.length,csvF(ev.structureName),fz.status,fz.confidence.toFixed(1),fz.centroid.toFixed(4),dClass]);
+    const fz=ev.fuzzy||Fuzzy.assess(ev.duration,ev.peakStoryDriftMm??ev.peakDisplacementMm??0); // TF disp
+    const pd=ev.peakStoryDriftMm??ev.peakDisplacementMm??0,ratio=pd/DISP_LIMIT_MM;
+    const dClass=ratio<1?'BT':ratio<1.5?'SAT':'GAT';
+    rows.push([ev.seqNum||ev.id,csvF(ev.timestamp.toLocaleString()),csvF(ev.endTime.toLocaleString()),ev.duration.toFixed(2),(ev.peakStoryDriftMm??ev.peakDisplacementMm??0).toFixed(4),ev.bufferDuration||BUFFER_DURATION,ev.node1Data.length,ev.node2Data.length,csvF(ev.structureName),fz.status,fz.confidence.toFixed(1),fz.centroid.toFixed(4),dClass]);
   });
   rows.push([],['--- DETAILED READINGS ---'],['Event_ID','Timestamp','Epoch_ms','Node','Disp_mag_mm','Dx_mm','Dy_mm','Dz_mm']);
   unsafeEvents.forEach(ev=>{
@@ -1883,12 +2026,22 @@ const Fuzzy=(()=>{
   // Boundaries use soft transitions (±2.5% overlap) so membership
   // grades change smoothly as displacement crosses the limit.
   function dispMFs(d){
+    // ── Displacement MFs tied to d_lim ───────────────────────
+    // BT  (Below Threshold)   : d < d_lim
+    //   Fully BT below 80% of d_lim, fades to 0 at d_lim.
+    // SAT (Slightly Above)    : d_lim ≤ d < 1.5 × d_lim
+    //   Represents displacement that has exceeded the limit
+    //   but only slightly — corresponds to NSCP SAT category.
+    // GAT (Greatly Above)     : d ≥ 1.5 × d_lim
+    //   Displacement significantly beyond the allowable limit.
+    // Transition zones (10% overlap) ensure smooth membership
+    // changes rather than hard steps at the boundaries.
     const lim    = DISP_LIMIT_MM;
-    const sat_hi = lim * 1.025;
+    const sat_hi = lim * 1.5;   // SAT upper boundary = 1.5 × d_lim
     return{
-      BT:  trapMF(d, 0,       0,       lim * 0.95,  lim * 1.005),
-      SAT: trapMF(d, lim * 0.98, lim,  sat_hi,      sat_hi * 1.01),
-      GAT: trapMF(d, sat_hi * 0.99, sat_hi, 9999,   9999)
+      BT:  trapMF(d, 0,           0,           lim * 0.8, lim),
+      SAT: trapMF(d, lim * 0.9,   lim,         sat_hi,    sat_hi * 1.1),
+      GAT: trapMF(d, sat_hi * 0.9,sat_hi,      9999,      9999)
     };
   }
 
@@ -1943,17 +2096,42 @@ const Fuzzy=(()=>{
       : 0;
     const status   = centroid<0.35 ? 'SAFE' : centroid<0.65 ? 'WARNING' : 'UNSAFE';
 
-    // Confidence = strength of the dominant output set relative to the total
-    // weighted activation — reflects how decisively the rules agree.
-    const dominant   = Math.max(safeStr, warnStr, unsafeStr);
-    const confidence = total>1e-6 ? Math.round(dominant/total*1000)/10 : 100.0;
+    // ── Confidence — two-factor formula ─────────────────────────────────────
+    //
+    // Factor 1: Rule agreement ratio
+    //   How decisively the fired rules agree on one output class.
+    //   = dominant output strength / total output activation
+    //   High when all active rules point to the same class.
+    //   Low when competing rules pull toward different classes (e.g. SAFE vs WARNING).
+    //
+    // Factor 2: Input certainty
+    //   How unambiguously the inputs fall into a single membership set.
+    //   Each input variable's certainty = max membership grade across its sets.
+    //   If duration is purely SHORT (grade=1.0), certainty=1.0.
+    //   If duration straddles SHORT/MEDIUM boundary (each 0.5), certainty=0.5.
+    //   Combined as the product of both input certainties.
+    //   This penalises transition-zone inputs that the system is genuinely uncertain about.
+    //
+    // Final confidence = rule_agreement × input_certainty × 100%
+    //   High   (≥75%): dominant rules fired cleanly, inputs in pure membership zones
+    //   Moderate (≥40%): some rule conflict OR inputs near a boundary
+    //   Low    (<40%): competing rules AND/OR inputs deeply in transition zones
+
+    const ruleAgreement  = total>1e-6 ? (Math.max(safeStr,warnStr,unsafeStr) / total) : 1.0;
+
+    const dCertainty = Math.max(dMem.SHORT, dMem.MEDIUM, dMem.LONG);   // 1.0 if purely in one set
+    const mCertainty = Math.max(mMem.BT,   mMem.SAT,    mMem.GAT);     // 1.0 if purely in one set
+    const inputCertainty = dCertainty * mCertainty;
+
+    const confidence = Math.round(ruleAgreement * inputCertainty * 1000) / 10; // 0–100%
 
     return{status,confidence,centroid,safeStr,warnStr,unsafeStr,
+           ruleAgreement,inputCertainty,dCertainty,mCertainty,
            ruleFirings,dMem,mMem,inputs:{durationSec,peakDispMm}};
   }
 
   function buildPanel(ev){
-    const f=ev.fuzzy||assess(ev.duration, ev.peakDisplacementMm||0);
+    const f=ev.fuzzy||assess(ev.duration, ev.peakStoryDriftMm??ev.peakDisplacementMm??0);
     if(!f) return '';
     const dClass = f.dMem.LONG>=f.dMem.MEDIUM&&f.dMem.LONG>=f.dMem.SHORT ? 'LONG'
                  : f.dMem.MEDIUM>=f.dMem.SHORT ? 'MEDIUM' : 'SHORT';
@@ -1983,8 +2161,15 @@ const Fuzzy=(()=>{
       </div>
       <div class="fuzzy-verdict-row">
         <div class="fuzzy-verdict ${f.status}">${f.status}</div>
-        <div class="fuzzy-conf-label">Confidence: <strong>${f.confidence}%</strong>
+        <div class="fuzzy-conf-label">
+          Confidence: <strong>${f.confidence}%</strong>
           <span style="color:var(--text-muted);font-size:.62rem"> · ${confLabel} confidence</span>
+          <span style="display:block;font-size:.6rem;color:var(--text-muted);margin-top:.2rem">
+            Rule agreement: ${((f.ruleAgreement??1)*100).toFixed(1)}%
+            · Input certainty: ${((f.inputCertainty??1)*100).toFixed(1)}%
+            (Duration: ${((f.dCertainty??1)*100).toFixed(1)}%
+            · Displacement: ${((f.mCertainty??1)*100).toFixed(1)}%)
+          </span>
         </div>
       </div>
       <div class="fuzzy-inputs-row">
@@ -1996,7 +2181,7 @@ const Fuzzy=(()=>{
           </span>
         </div>
         <div class="fuzzy-input-chip">
-          <span>Peak Story Drift (Δ): </span><strong>${f.inputs.peakDispMm.toFixed(3)} mm</strong>
+          <span>Peak Relative Disp (TF−GF): </span><strong>${f.inputs.peakDispMm.toFixed(3)} mm</strong>
           <span style="margin-left:.35rem;color:var(--text-muted)">→ ${mClass}
             (BT:${pct(mMem.BT)} SAT:${pct(mMem.SAT)} GAT:${pct(mMem.GAT)})
           </span>
@@ -2050,28 +2235,36 @@ const SignalProcessor=(()=>{
     node.latestVD={vx,vy,vz,vmag:Math.sqrt(vx*vx+vy*vy+vz*vz),dx,dy,dz,dmag:Math.sqrt(dx*dx+dy*dy+dz*dz)};
     node.currentDispMm=node.latestVD.dmag; // absolute |D| at this node (mm)
 
-    // ── Compute relative story drift = |D_topfloor - D_groundfloor| ─────────
-    // Story drift is the per-axis difference, then resultant magnitude.
-    // This is the NSCP storey displacement: Δ = D_roof - D_floor.
-    // Both nodes must have fresh data; skip if the other node hasn't reported yet.
-    const otherNode = nodes[nodeId==='node1' ? 'node2' : 'node1'];
-    const otherVD   = otherNode.latestVD || {};
-    if(otherVD.dx != null){
-      // node2 = top floor, node1 = ground floor
-      const isTopFloor = nodeId === 'node2';
-      const tfVD = isTopFloor ? node.latestVD : otherVD;
-      const gfVD = isTopFloor ? otherVD       : node.latestVD;
-      // Sample-by-sample story drift using latest VD from both nodes
-      const ddx = tfVD.dx - gfVD.dx;
-      const ddy = tfVD.dy - gfVD.dy;
-      const ddz = tfVD.dz - gfVD.dz;
-      const storyDrift = Math.sqrt(ddx*ddx + ddy*ddy + ddz*ddz); // mm
-      // Store on BOTH nodes so checkStructureStatus can read from either
-      nodes.node1.currentStoryDriftMm = storyDrift;
-      nodes.node2.currentStoryDriftMm = storyDrift;
-      // Track peak drift during the current event window
-      nodes.node1.peakStoryDriftMmSinceEvent = Math.max(nodes.node1.peakStoryDriftMmSinceEvent||0, storyDrift);
-      nodes.node2.peakStoryDriftMmSinceEvent = Math.max(nodes.node2.peakStoryDriftMmSinceEvent||0, storyDrift);
+    // ── Use Top Floor absolute displacement as the assessment metric ────────
+    // Node 2 (top floor) = measurement point.
+    // Node 1 (ground floor) = reference / base.
+    //
+    // Double integration drifts independently per node so per-node absolute
+    // values are not reliably comparable. Instead, the Top Floor's resultant
+    // displacement magnitude |D_TF| directly represents how much that floor
+    // has moved — which is the quantity to assess against d_lim.
+    //
+    // This is stored as "storyDriftMm" for naming consistency across the rest
+    // of the codebase (history, fuzzy input, CSV exports), but its value is
+    // now the Top Floor absolute displacement |D_TF| in mm.
+    // ── Update live relative displacement (TF − GF) for status display ─────
+    // currentStoryDriftMm = max(0, |D_TF| - |D_GF|) using the latest batch
+    // from each node. This drives the live status bar and story ring display.
+    // Peak for fuzzy assessment is computed separately in endUnsafeEvent
+    // from the dataBuffer to avoid running-integral drift issues.
+    const tfDmag = nodeId==='node2'
+      ? node.latestVD.dmag
+      : (nodes.node2.latestVD||{}).dmag ?? null;
+    const gfDmag = nodeId==='node1'
+      ? node.latestVD.dmag
+      : (nodes.node1.latestVD||{}).dmag ?? null;
+    if(tfDmag != null && gfDmag != null){
+      const relDisp = Math.max(0, tfDmag - gfDmag);
+      nodes.node1.currentStoryDriftMm = relDisp;
+      nodes.node2.currentStoryDriftMm = relDisp;
+    } else if(tfDmag != null){
+      nodes.node1.currentStoryDriftMm = tfDmag;
+      nodes.node2.currentStoryDriftMm = tfDmag;
     }
 
     // Note: event detection is handled by updateSTALTA (STA/LTA trigger),
