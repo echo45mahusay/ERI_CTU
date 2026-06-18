@@ -599,13 +599,13 @@ body {
 
         <div class="config-item">
           <label class="config-label">Trigger Threshold (m/s²)</label>
-          <input type="number" class="config-input" id="triggerAccel" value="1.0" step="0.05" min="0.1" max="20.0">
-          <p class="config-help">TF resultant above this (on either floor) starts recording an event. Set above your location's ambient vibration level.</p>
+          <input type="number" class="config-input" id="triggerAccel" placeholder="e.g. 1.0" step="0.05" min="0.1" max="20.0">
+          <p class="config-help">Resultant on <strong>either floor</strong> above this starts recording an event. Set above your location's ambient vibration level.</p>
         </div>
         <div class="config-item">
           <label class="config-label">Baseline (m/s²)</label>
-          <input type="number" class="config-input" id="baselineAccel" value="0.6" step="0.05" min="0.1" max="10.0">
-          <p class="config-help">TF resultant must fall at or below this on the triggering floor for 3 consecutive seconds to close an event. Set below the trigger threshold.</p>
+          <input type="number" class="config-input" id="baselineAccel" placeholder="e.g. 0.6" step="0.05" min="0.1" max="10.0">
+          <p class="config-help">Resultant on <strong>either floor</strong> must fall at or below this for 3 consecutive seconds to close an event. Set below the trigger threshold.</p>
         </div>
         <div class="config-item">
           <label class="config-label">Structure Name</label>
@@ -620,8 +620,8 @@ body {
 
         <div class="config-item">
           <label class="config-label">Displacement Limit — d_lim (mm)</label>
-          <input type="number" class="config-input" id="dispLimit" value="12.5" step="0.5" min="1" max="100">
-          <p class="config-help">NSCP-based allowable storey displacement. Used for BT/SAT/GAT classification</p>
+          <input type="number" class="config-input" id="dispLimit" placeholder="e.g. 12.5" step="0.5" min="1" max="100">
+          <p class="config-help">Allowable storey displacement for your structure (mm). Used for BT/SAT/GAT classification.</p>
         </div>
       </div>
     </div>
@@ -985,13 +985,13 @@ function updateAllCharts(nodeId) {
 let mqttClient=null, reconnectTimer=null, reconnectDelay=2000;
 let historyReceived={events:false}, snapshotTimer=null;
 let THRESHOLD_STALTA=3.0, BUFFER_DURATION=5; // THRESHOLD_STALTA kept for STA/LTA bar display only
-let TRIGGER_ACCEL=1.0;   // TF resultant (m/s²) above this starts recording — set by user
-let BASELINE_ACCEL=0.6;  // TF resultant (m/s²) below this closes an event — set by user
+let TRIGGER_ACCEL=null;   // resultant (m/s²) on either floor above this starts recording — must be set by user
+let BASELINE_ACCEL=null;  // resultant (m/s²) on either floor below this closes an event — must be set by user
 const TRIGGER_COUNT   = 2;   // consecutive readings above trigger to latch
 const BASELINE_COUNT  = 3;   // consecutive readings at/below baseline to close
 let _triggerHits   = 0;   // running count of above-trigger readings (debounce)
 let _baselineHits  = 0;   // running count of at/below-baseline readings (debounce)
-let DISP_LIMIT_MM=12.5;
+let DISP_LIMIT_MM=null;  // mm — must be set by user via config
 
 const nodes = {
   node1:{id:'node1',name:'Ground Floor',online:false,currentMagnitude:0,maxMagnitude:0,staLtaRatio:0,x:0,y:0,z:0,dataBuffer:[],livePoints:[],sessionPoints:[],raw:{},hourly:{},daily:{},peakDispMmSinceEvent:0,currentDispMm:0},
@@ -1524,15 +1524,22 @@ function updateFuzzyHero(fz){
 //  THRESHOLD & EVENT DETECTION
 // ══════════════════════════════════════════════════════════════
 // ── Threshold Detection ───────────────────────────────────────────────────────
-// Monitors BOTH floors. An event latches when EITHER floor's TF resultant
+// Monitors BOTH floors. An event latches when EITHER floor's resultant
 // exceeds TRIGGER_ACCEL for TRIGGER_COUNT consecutive readings.
-// An event closes when BOTH floors are at or below BASELINE_ACCEL for
-// BASELINE_COUNT consecutive readings.
-// Both thresholds are set directly from user config — no auto-calibration.
+// An event closes when EITHER floor's resultant falls at or below BASELINE_ACCEL
+// for BASELINE_COUNT consecutive readings.
+// Both thresholds are set by the user via config — no hardcoded defaults.
 function checkStructureStatus(){
   // At 1 Hz:
   //   TRIGGER_COUNT=2  → 2 consecutive seconds above trigger → latch
-  //   BASELINE_COUNT=3 → 3 consecutive seconds at baseline   → close
+  //   BASELINE_COUNT=3 → 3 consecutive seconds at/below baseline on either floor → close
+
+  // Guard — do nothing until user has applied config
+  if(TRIGGER_ACCEL===null || BASELINE_ACCEL===null || DISP_LIMIT_MM===null){
+    const sbEl2=document.getElementById('statusInfo');
+    if(sbEl2) sbEl2.textContent='⚙️ Configure Trigger, Baseline, and Displacement Limit then press Apply';
+    return;
+  }
 
   const n1Mag      = nodes.node1.currentMagnitude || 0;
   const n2Mag      = nodes.node2.currentMagnitude || 0;
@@ -1564,29 +1571,30 @@ function checkStructureStatus(){
     sbEl.textContent=`Monitoring · Trigger: ${TRIGGER_ACCEL} m/s² · Baseline: ${BASELINE_ACCEL} m/s²${_triggerHits>0?' · Trigger hits: '+_triggerHits+'/'+TRIGGER_COUNT:''}`;
 
   }else if(structureStatus==='UNSAFE'&&isRecordingEvent){
-    // Event closes only when BOTH floors have settled to baseline
-    const bothSettled = n1Mag <= BASELINE_ACCEL && n2Mag <= BASELINE_ACCEL;
-    if(bothSettled){
+    // Event closes when EITHER floor has settled to or below baseline
+    const eitherSettled = n1Mag <= BASELINE_ACCEL || n2Mag <= BASELINE_ACCEL;
+    if(eitherSettled){
       _baselineHits++;
       _triggerHits = 0;
+      const settledFloor = n1Mag <= BASELINE_ACCEL ? 'GF' : 'TF';
       if(_baselineHits >= BASELINE_COUNT){
         _baselineHits = 0;
         const endTime = new Date();
-        console.log(`[ERI] Baseline confirmed — both floors ≤${BASELINE_ACCEL} for ${BASELINE_COUNT} readings, closing`);
+        console.log(`[ERI] Baseline confirmed — ${settledFloor} ≤${BASELINE_ACCEL} for ${BASELINE_COUNT} readings, closing`);
         endUnsafeEvent(endTime);
       } else {
         card.classList.add('unsafe');
         valEl.textContent='UNSAFE'; valEl.className='overall-status-value unsafe';
         infoEl.textContent=`📉 Settling… GF: ${n1Mag.toFixed(3)} · TF: ${n2Mag.toFixed(3)} m/s² · confirming baseline (${_baselineHits}/${BASELINE_COUNT})`;
-        sbEl.textContent=`📉 Baseline check ${_baselineHits}/${BASELINE_COUNT} — confirming both floors ≤${BASELINE_ACCEL} m/s²`;
+        sbEl.textContent=`📉 Baseline check ${_baselineHits}/${BASELINE_COUNT} — ${settledFloor} ≤${BASELINE_ACCEL} m/s² (either floor)`;
       }
     } else {
-      // At least one floor still above baseline — keep recording
+      // Both floors still above baseline — keep recording
       _baselineHits = 0;
       card.classList.add('unsafe');
       valEl.textContent='UNSAFE'; valEl.className='overall-status-value unsafe';
       infoEl.textContent=`⚠️ Recording… GF: ${n1Mag.toFixed(3)} · TF: ${n2Mag.toFixed(3)} m/s² · Drift: ${storyDrift.toFixed(3)} mm`;
-      sbEl.textContent=`⚠️ Recording — GF: ${n1Mag.toFixed(3)} · TF: ${n2Mag.toFixed(3)} m/s² · waiting for both ≤${BASELINE_ACCEL} m/s²`;
+      sbEl.textContent=`⚠️ Recording — GF: ${n1Mag.toFixed(3)} · TF: ${n2Mag.toFixed(3)} m/s² · waiting for either ≤${BASELINE_ACCEL} m/s²`;
     }
 
   }else{
@@ -1677,10 +1685,21 @@ function endUnsafeEvent(endTime){
 // ══════════════════════════════════════════════════════════════
 function applyThreshold(){
   THRESHOLD_STALTA =parseFloat(document.getElementById('thresholdSTALTA')?.value)||3.0; // for STA/LTA bar only
-  TRIGGER_ACCEL    =parseFloat(document.getElementById('triggerAccel').value)||1.0;
-  BASELINE_ACCEL   =parseFloat(document.getElementById('baselineAccel').value)||0.6;
-  BUFFER_DURATION  =parseInt(document.getElementById('bufferDuration').value)||5;
-  DISP_LIMIT_MM    =parseFloat(document.getElementById('dispLimit').value)||12.5;
+  const _ta=parseFloat(document.getElementById('triggerAccel').value);
+  const _ba=parseFloat(document.getElementById('baselineAccel').value);
+  const _dl=parseFloat(document.getElementById('dispLimit').value);
+  if(isNaN(_ta)||isNaN(_ba)||isNaN(_dl)){
+    toast('⚠️ Trigger Threshold, Baseline, and Displacement Limit are all required.','warn');
+    return;
+  }
+  if(_ba>=_ta){
+    toast('⚠️ Baseline must be less than the Trigger Threshold.','warn');
+    return;
+  }
+  TRIGGER_ACCEL  = _ta;
+  BASELINE_ACCEL = _ba;
+  BUFFER_DURATION=parseInt(document.getElementById('bufferDuration').value)||5;
+  DISP_LIMIT_MM  = _dl;
 
   document.getElementById('driftLimDisp').textContent=DISP_LIMIT_MM.toFixed(1);
   const fb=document.getElementById('configApplied');fb.classList.add('show');setTimeout(()=>fb.classList.remove('show'),2500);
