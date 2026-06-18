@@ -599,13 +599,13 @@ body {
 
         <div class="config-item">
           <label class="config-label">Trigger Threshold (m/s²)</label>
-          <input type="number" class="config-input" id="triggerAccel" value="1.11" step="0.05" min="0.1" max="20.0">
-          <p class="config-help">TF resultant above this starts recording an event. Normal ≈ 1.05 m/s².</p>
+          <input type="number" class="config-input" id="triggerAccel" value="1.0" step="0.05" min="0.1" max="20.0">
+          <p class="config-help">TF resultant above this (on either floor) starts recording an event. Set above your location's ambient vibration level.</p>
         </div>
         <div class="config-item">
-          <label class="config-label">Normal Range (m/s²)</label>
-          <input type="number" class="config-input" id="baselineAccel" value="1.16" step="0.05" min="0.1" max="10.0">
-          <p class="config-help">Fallback baseline used until auto-calibration collects enough samples (expected: 0.8–1.3 m/s²). Auto-calibration updates this live from idle readings.</p>
+          <label class="config-label">Baseline (m/s²)</label>
+          <input type="number" class="config-input" id="baselineAccel" value="0.6" step="0.05" min="0.1" max="10.0">
+          <p class="config-help">TF resultant must fall at or below this on the triggering floor for 3 consecutive seconds to close an event. Set below the trigger threshold.</p>
         </div>
         <div class="config-item">
           <label class="config-label">Structure Name</label>
@@ -908,7 +908,7 @@ function toast(msg, type = 'info', duration = 3000) {
 const CHART_RING_LEN = 300;   // ~5 min at 1 Hz
 
 function makeChartRing() {
-  return { t:[], ax:[], ay:[], az:[], mag:[],
+  return { ep:[], t:[], ax:[], ay:[], az:[], mag:[],
            vx:[], vy:[], vz:[], vmag:[],
            dx:[], dy:[], dz:[], dmag:[] };
 }
@@ -925,6 +925,7 @@ function pushChartRing(nodeId, epochMs, ax, ay, az, mag) {
   const node = nodes[nodeId];
   const r    = chartRing[nodeId];
   const lv   = node.latestVD || {};   // latest vel/disp from most recent batch
+  r.ep.push(epochMs);
   r.t.push(fmtTime(epochMs));
   r.ax.push(ax); r.ay.push(ay); r.az.push(az); r.mag.push(mag);
   r.vx.push(lv.vx ?? null); r.vy.push(lv.vy ?? null);
@@ -932,6 +933,7 @@ function pushChartRing(nodeId, epochMs, ax, ay, az, mag) {
   r.dx.push(lv.dx ?? null); r.dy.push(lv.dy ?? null);
   r.dz.push(lv.dz ?? null); r.dmag.push(lv.dmag ?? null);
   if (r.t.length > CHART_RING_LEN) Object.keys(r).forEach(k => r[k].shift());
+  saveChartRingsToLS();
 }
 
 function getChartView(nodeId) {
@@ -983,18 +985,12 @@ function updateAllCharts(nodeId) {
 let mqttClient=null, reconnectTimer=null, reconnectDelay=2000;
 let historyReceived={events:false}, snapshotTimer=null;
 let THRESHOLD_STALTA=3.0, BUFFER_DURATION=5; // THRESHOLD_STALTA kept for STA/LTA bar display only
-let TRIGGER_ACCEL=1.11;  // TF resultant (m/s²) above this starts recording
-let BASELINE_ACCEL=1.16;  // fallback baseline if no calibration data yet
+let TRIGGER_ACCEL=1.0;   // TF resultant (m/s²) above this starts recording — set by user
+let BASELINE_ACCEL=0.6;  // TF resultant (m/s²) below this closes an event — set by user
 const TRIGGER_COUNT   = 2;   // consecutive readings above trigger to latch
 const BASELINE_COUNT  = 3;   // consecutive readings at/below baseline to close
-const NORMAL_WIN      = 30;  // rolling window size for normal baseline (samples)
-const NORMAL_LOW      = 0.91; // expected normal range lower bound (m/s²)
-const NORMAL_HIGH     = 1.41; // expected normal range upper bound (m/s²)
-let _triggerHits   = 0;   // running count of above-trigger readings
-let _baselineHits  = 0;   // running count of at/below-baseline readings
-let _normalRing    = [];  // rolling array of idle TF resultant readings
-let _dynamicBase   = 1.16; // computed dynamic baseline (mean of _normalRing)
-let _dynamicTrigger= 1.11; // computed dynamic trigger (baseline + margin)
+let _triggerHits   = 0;   // running count of above-trigger readings (debounce)
+let _baselineHits  = 0;   // running count of at/below-baseline readings (debounce)
 let DISP_LIMIT_MM=12.5;
 
 const nodes = {
@@ -1007,7 +1003,7 @@ let eventStartTime=null, eventEndTimeout=null, eventCharts={};
 
 // Story displacement chart
 let storyDispChart=null;
-const storyRing = { t:[], n1:[], n2:[], lim:[] };
+const storyRing = { ep:[], t:[], n1:[], n2:[], lim:[] };
 const STORY_RING_LEN=300;
 
 // ══════════════════════════════════════════════════════════════
@@ -1098,6 +1094,7 @@ requestAnimationFrame(()=>{
     [node1Chart,node1ChartX,node1ChartY,node1ChartZ,node1ChartVel,node1ChartDisp,
      node2Chart,node2ChartX,node2ChartY,node2ChartZ,node2ChartVel,node2ChartDisp,storyDispChart]
     .forEach(ch=>ch&&ch.resize());
+    restoreChartRingsFromLS();
       },250);
 });
 
@@ -1218,8 +1215,123 @@ function hydrateEvent(raw){return{...raw,timestamp:new Date(raw.timestamp),endTi
 // Span time functions removed — chartRing + updateAllCharts() replaces them.
 
 // ══════════════════════════════════════════════════════════════
-//  MQTT
+//  CHART RING LOCAL STORAGE PERSISTENCE
+//  Saves chartRing (all 6 charts per node) + storyRing to
+//  localStorage every 10 s (throttled) and on page close.
+//  On load, restores data and filters anything older than 1 hour
+//  so the graphs resume from where they left off.
 // ══════════════════════════════════════════════════════════════
+const CHART_LS_KEY  = 'eri_chartRing_v1';
+const STORY_LS_KEY  = 'eri_storyRing_v1';
+const LS_MAX_AGE_MS = 60 * 60 * 1000; // keep up to 1 hour of graph history
+const LS_SAVE_INTERVAL_MS = 10000;    // throttle: save at most every 10 s
+let _lsSaveTimer = null;
+
+function saveChartRingsToLS() {
+  if (_lsSaveTimer) return; // already scheduled
+  _lsSaveTimer = setTimeout(() => {
+    _lsSaveTimer = null;
+    try {
+      localStorage.setItem(CHART_LS_KEY, JSON.stringify({
+        savedAt : Date.now(),
+        node1   : chartRing.node1,
+        node2   : chartRing.node2
+      }));
+    } catch(e) { console.warn('[LS] chartRing save failed:', e); }
+    try {
+      localStorage.setItem(STORY_LS_KEY, JSON.stringify({
+        savedAt : Date.now(),
+        ring    : storyRing
+      }));
+    } catch(e) { console.warn('[LS] storyRing save failed:', e); }
+  }, LS_SAVE_INTERVAL_MS);
+}
+
+function _sliceRingFrom(ring, startIdx) {
+  // Return a new ring object with all arrays sliced from startIdx
+  const out = {};
+  Object.keys(ring).forEach(k => { out[k] = Array.isArray(ring[k]) ? ring[k].slice(startIdx) : ring[k]; });
+  return out;
+}
+
+function restoreChartRingsFromLS() {
+  const cutoff = Date.now() - LS_MAX_AGE_MS;
+
+  // ── chartRing ──────────────────────────────────────────────
+  try {
+    const raw = localStorage.getItem(CHART_LS_KEY);
+    if (raw) {
+      const saved = JSON.parse(raw);
+      let anyRestored = false;
+      ['node1', 'node2'].forEach(nodeId => {
+        const ring = saved[nodeId];
+        if (!ring || !Array.isArray(ring.ep) || ring.ep.length === 0) return;
+        // Find the first entry that is still within the max-age window
+        const startIdx = ring.ep.findIndex(ep => ep >= cutoff);
+        if (startIdx < 0) return; // all data is expired
+        const sliced = _sliceRingFrom(ring, startIdx);
+        // Cap to CHART_RING_LEN in case the saved ring was longer
+        const excess = (sliced.t || []).length - CHART_RING_LEN;
+        if (excess > 0) Object.keys(sliced).forEach(k => { if(Array.isArray(sliced[k])) sliced[k].splice(0, excess); });
+        // Merge into the live chartRing (only if live ring is still empty — don't overwrite fresh MQTT data)
+        if (chartRing[nodeId].t.length === 0) {
+          Object.keys(sliced).forEach(k => { chartRing[nodeId][k] = sliced[k]; });
+          anyRestored = true;
+        }
+      });
+      if (anyRestored) {
+        if (node1Chart) updateAllCharts('node1');
+        if (node2Chart) updateAllCharts('node2');
+        console.log('[LS] chartRing restored from localStorage');
+      }
+    }
+  } catch(e) { console.warn('[LS] chartRing restore failed:', e); }
+
+  // ── storyRing ─────────────────────────────────────────────
+  try {
+    const raw = localStorage.getItem(STORY_LS_KEY);
+    if (raw) {
+      const saved = JSON.parse(raw);
+      const ring  = saved.ring;
+      if (ring && Array.isArray(ring.ep) && ring.ep.length > 0 && storyRing.t.length === 0) {
+        const startIdx = ring.ep.findIndex(ep => ep >= cutoff);
+        if (startIdx >= 0) {
+          const sliced = _sliceRingFrom(ring, startIdx);
+          const excess = (sliced.t || []).length - STORY_RING_LEN;
+          if (excess > 0) Object.keys(sliced).forEach(k => { if(Array.isArray(sliced[k])) sliced[k].splice(0, excess); });
+          Object.keys(sliced).forEach(k => { storyRing[k] = sliced[k]; });
+          if (storyDispChart) {
+            storyDispChart.data.labels            = storyRing.t;
+            storyDispChart.data.datasets[0].data  = storyRing.n1;
+            storyDispChart.data.datasets[1].data  = storyRing.n2;
+            storyDispChart.data.datasets[2].data  = storyRing.lim;
+            storyDispChart.update('none');
+          }
+          console.log('[LS] storyRing restored from localStorage');
+        }
+      }
+    }
+  } catch(e) { console.warn('[LS] storyRing restore failed:', e); }
+}
+
+// Save immediately on page close/hide so the most recent second isn't lost
+window.addEventListener('pagehide', () => {
+  if (_lsSaveTimer) { clearTimeout(_lsSaveTimer); _lsSaveTimer = null; }
+  try {
+    localStorage.setItem(CHART_LS_KEY, JSON.stringify({ savedAt: Date.now(), node1: chartRing.node1, node2: chartRing.node2 }));
+    localStorage.setItem(STORY_LS_KEY, JSON.stringify({ savedAt: Date.now(), ring: storyRing }));
+  } catch(e) {}
+});
+// beforeunload fires on desktop browsers where pagehide may not
+window.addEventListener('beforeunload', () => {
+  if (_lsSaveTimer) { clearTimeout(_lsSaveTimer); _lsSaveTimer = null; }
+  try {
+    localStorage.setItem(CHART_LS_KEY, JSON.stringify({ savedAt: Date.now(), node1: chartRing.node1, node2: chartRing.node2 }));
+    localStorage.setItem(STORY_LS_KEY, JSON.stringify({ savedAt: Date.now(), ring: storyRing }));
+  } catch(e) {}
+});
+
+
 function connectMQTT(){
   if(mqttClient){try{mqttClient.end(true);}catch(_){}}
   if(reconnectTimer){clearTimeout(reconnectTimer);reconnectTimer=null;}
@@ -1303,9 +1415,10 @@ function onClose(){
 // ══════════════════════════════════════════════════════════════
 
 function updateStoryRing(n1d, n2d){
-  const label=new Date().toLocaleTimeString();
-  if(storyRing.t.length>=STORY_RING_LEN){storyRing.t.shift();storyRing.n1.shift();storyRing.n2.shift();storyRing.lim.shift();}
-  storyRing.t.push(label);storyRing.n1.push(n1d);storyRing.n2.push(n2d);storyRing.lim.push(DISP_LIMIT_MM);
+  const now=Date.now();
+  const label=new Date(now).toLocaleTimeString();
+  if(storyRing.t.length>=STORY_RING_LEN){storyRing.ep.shift();storyRing.t.shift();storyRing.n1.shift();storyRing.n2.shift();storyRing.lim.shift();}
+  storyRing.ep.push(now);storyRing.t.push(label);storyRing.n1.push(n1d);storyRing.n2.push(n2d);storyRing.lim.push(DISP_LIMIT_MM);
   if(storyDispChart){
     storyDispChart.data.labels=storyRing.t;
     storyDispChart.data.datasets[0].data=storyRing.n1;
@@ -1367,8 +1480,8 @@ function updateAccelData(nodeId,data){
   try{ updateAllCharts(nodeId); }
   catch(e){ console.warn('[accel] updateAllCharts failed:',e); }
   scheduleSnapshot();
-  // Detection now uses TF resultant — check on every accel update
-  if(nodeId==='node2') checkStructureStatus();
+  // Detection checks both floors — call on every accel update from either node
+  checkStructureStatus();
 }
 
 function updateSTALTA(nodeId,data){
@@ -1410,47 +1523,21 @@ function updateFuzzyHero(fz){
 // ══════════════════════════════════════════════════════════════
 //  THRESHOLD & EVENT DETECTION
 // ══════════════════════════════════════════════════════════════
-// ── Dynamic Baseline Calibration ─────────────────────────────────────────────
-// While the system is SAFE (not recording), collect TF resultant readings that
-// fall within the expected normal range (NORMAL_LOW–NORMAL_HIGH). Keep a
-// rolling window of the last NORMAL_WIN readings and compute the mean.
-// This mean becomes the dynamic baseline. The trigger is set to baseline + margin.
-// Result: the system self-calibrates to your specific sensor and mounting position.
-function updateNormalBaseline(tfMag){
-  if(structureStatus!=='SAFE') return; // only collect idle readings
-  if(tfMag>=NORMAL_LOW && tfMag<=NORMAL_HIGH){
-    _normalRing.push(tfMag);
-    if(_normalRing.length>NORMAL_WIN) _normalRing.shift();
-    if(_normalRing.length>=5){ // need at least 5 samples before trusting the mean
-      _dynamicBase    = _normalRing.reduce((a,b)=>a+b,0)/_normalRing.length;
-      _dynamicTrigger = _dynamicBase + 0.35; // trigger = baseline + 0.35 m/s² margin
-      BASELINE_ACCEL  = parseFloat((_dynamicBase + 0.05).toFixed(4)); // close threshold = baseline + 5%
-    }
-  }
-  // Update the baseline display in the status bar
-  const el = document.getElementById('dynamicBaseDisplay');
-  if(el) el.textContent = `Base: ${_dynamicBase.toFixed(3)} m/s² (n=${_normalRing.length})`;
-}
-
+// ── Threshold Detection ───────────────────────────────────────────────────────
+// Monitors BOTH floors. An event latches when EITHER floor's TF resultant
+// exceeds TRIGGER_ACCEL for TRIGGER_COUNT consecutive readings.
+// An event closes when BOTH floors are at or below BASELINE_ACCEL for
+// BASELINE_COUNT consecutive readings.
+// Both thresholds are set directly from user config — no auto-calibration.
 function checkStructureStatus(){
-  // ── TF Resultant Acceleration Trigger with Debounce ───────────────────────
-  //
-  // Debounce prevents a single noisy reading from:
-  //   - Falsely starting an event (trigger debounce: need TRIGGER_COUNT
-  //     consecutive readings above TRIGGER_ACCEL)
-  //   - Prematurely closing an event (baseline debounce: need BASELINE_COUNT
-  //     consecutive readings at/below BASELINE_ACCEL)
-  //
-  // At 1 Hz this means:
-  //   TRIGGER_COUNT=2  → 2 consecutive seconds above trigger  → latch
-  //   BASELINE_COUNT=3 → 3 consecutive seconds at baseline    → close
-  //
-  // State:
-  //   SAFE    → debounced trigger fires → LATCHED → startUnsafeEvent()
-  //   LATCHED → above baseline          → keep recording
-  //   LATCHED → debounced baseline fires → endUnsafeEvent()
+  // At 1 Hz:
+  //   TRIGGER_COUNT=2  → 2 consecutive seconds above trigger → latch
+  //   BASELINE_COUNT=3 → 3 consecutive seconds at baseline   → close
 
-  const tfMag      = nodes.node2.currentMagnitude || 0;
+  const n1Mag      = nodes.node1.currentMagnitude || 0;
+  const n2Mag      = nodes.node2.currentMagnitude || 0;
+  const tfMag      = Math.max(n1Mag, n2Mag);           // highest of either floor
+  const activeNode = n1Mag >= n2Mag ? 'GF' : 'TF';    // which floor is dominant
   const storyDrift = nodes.node1.currentStoryDriftMm || 0;
   const card  = document.getElementById('overallStatusCard');
   const valEl = document.getElementById('overallStatusValue');
@@ -1458,63 +1545,54 @@ function checkStructureStatus(){
   const sbEl  = document.getElementById('statusInfo');
 
   if(structureStatus==='SAFE'){
-    // ── Waiting to trigger ─────────────────────────────────────
-    // Update rolling normal baseline from idle readings
-    updateNormalBaseline(tfMag);
-    // Use dynamic trigger if calibrated, else fall back to TRIGGER_ACCEL config
-    const activeTrigger = _normalRing.length>=5 ? _dynamicTrigger : TRIGGER_ACCEL;
-    if(tfMag > activeTrigger){
+    // ── Waiting to trigger ──────────────────────────────────────────────────
+    if(tfMag > TRIGGER_ACCEL){
       _triggerHits++;
       _baselineHits = 0;
       if(_triggerHits >= TRIGGER_COUNT){
         _triggerHits = 0;
         structureStatus = 'UNSAFE';
         startUnsafeEvent();
-        console.log(`[ERI] Latched — TF ${tfMag.toFixed(3)} m/s² > ${activeTrigger.toFixed(3)} (dynamic trigger)`);
+        console.log(`[ERI] Latched — ${activeNode} TF ${tfMag.toFixed(3)} m/s² > ${TRIGGER_ACCEL.toFixed(3)} (user threshold)`);
       }
     } else {
       _triggerHits = 0;
     }
     card.classList.remove('unsafe');
     valEl.textContent='SAFE'; valEl.className='overall-status-value safe';
-    const calibStr = _normalRing.length>=5
-      ? `Base: ${_dynamicBase.toFixed(3)} m/s² · Trigger: ${activeTrigger.toFixed(3)} m/s² (n=${_normalRing.length})`
-      : `Calibrating… ${_normalRing.length}/${NORMAL_WIN} samples · Trigger: ${TRIGGER_ACCEL} m/s²`;
-    infoEl.textContent=`No earthquake · TF: ${tfMag.toFixed(3)} m/s² · Drift: ${storyDrift.toFixed(3)} mm / d_lim: ${DISP_LIMIT_MM} mm`;
-    sbEl.textContent=`Monitoring · ${calibStr}${_triggerHits>0?' · Trigger hits: '+_triggerHits+'/'+TRIGGER_COUNT:''}`;
+    infoEl.textContent=`No earthquake · GF: ${n1Mag.toFixed(3)} m/s² · TF: ${n2Mag.toFixed(3)} m/s² · Drift: ${storyDrift.toFixed(3)} mm / d_lim: ${DISP_LIMIT_MM} mm`;
+    sbEl.textContent=`Monitoring · Trigger: ${TRIGGER_ACCEL} m/s² · Baseline: ${BASELINE_ACCEL} m/s²${_triggerHits>0?' · Trigger hits: '+_triggerHits+'/'+TRIGGER_COUNT:''}`;
 
   }else if(structureStatus==='UNSAFE'&&isRecordingEvent){
-    const closeThreshold = _normalRing.length>=5 ? BASELINE_ACCEL : 0.77;
-    if(tfMag <= closeThreshold){
-      // Below baseline — increment debounce counter
+    // Event closes only when BOTH floors have settled to baseline
+    const bothSettled = n1Mag <= BASELINE_ACCEL && n2Mag <= BASELINE_ACCEL;
+    if(bothSettled){
       _baselineHits++;
       _triggerHits = 0;
       if(_baselineHits >= BASELINE_COUNT){
-        // Enough consecutive at-baseline readings — close event
         _baselineHits = 0;
         const endTime = new Date();
-        console.log(`[ERI] Baseline confirmed — TF ≤${BASELINE_ACCEL} for ${BASELINE_COUNT} readings, closing`);
+        console.log(`[ERI] Baseline confirmed — both floors ≤${BASELINE_ACCEL} for ${BASELINE_COUNT} readings, closing`);
         endUnsafeEvent(endTime);
       } else {
-        // Not enough yet — keep recording, show countdown
         card.classList.add('unsafe');
         valEl.textContent='UNSAFE'; valEl.className='overall-status-value unsafe';
-        infoEl.textContent=`📉 Settling… TF: ${tfMag.toFixed(3)} m/s² · confirming baseline (${_baselineHits}/${BASELINE_COUNT})`;
-        sbEl.textContent=`📉 Baseline check ${_baselineHits}/${BASELINE_COUNT} — confirming ≤${BASELINE_ACCEL} m/s²`;
+        infoEl.textContent=`📉 Settling… GF: ${n1Mag.toFixed(3)} · TF: ${n2Mag.toFixed(3)} m/s² · confirming baseline (${_baselineHits}/${BASELINE_COUNT})`;
+        sbEl.textContent=`📉 Baseline check ${_baselineHits}/${BASELINE_COUNT} — confirming both floors ≤${BASELINE_ACCEL} m/s²`;
       }
     } else {
-      // Still above baseline — reset baseline counter, keep recording
+      // At least one floor still above baseline — keep recording
       _baselineHits = 0;
       card.classList.add('unsafe');
       valEl.textContent='UNSAFE'; valEl.className='overall-status-value unsafe';
-      infoEl.textContent=`⚠️ Recording… TF: ${tfMag.toFixed(3)} m/s² · baseline ≤${BASELINE_ACCEL} m/s² · Drift: ${storyDrift.toFixed(3)} mm`;
-      sbEl.textContent=`⚠️ Recording — TF: ${tfMag.toFixed(3)} m/s² · waiting for ≤${BASELINE_ACCEL} m/s²`;
+      infoEl.textContent=`⚠️ Recording… GF: ${n1Mag.toFixed(3)} · TF: ${n2Mag.toFixed(3)} m/s² · Drift: ${storyDrift.toFixed(3)} mm`;
+      sbEl.textContent=`⚠️ Recording — GF: ${n1Mag.toFixed(3)} · TF: ${n2Mag.toFixed(3)} m/s² · waiting for both ≤${BASELINE_ACCEL} m/s²`;
     }
 
   }else{
     card.classList.remove('unsafe');
     valEl.textContent='SAFE'; valEl.className='overall-status-value safe';
-    infoEl.textContent=`No earthquake · TF: ${tfMag.toFixed(3)} m/s² · Drift: ${storyDrift.toFixed(3)} mm / d_lim: ${DISP_LIMIT_MM} mm`;
+    infoEl.textContent=`No earthquake · GF: ${n1Mag.toFixed(3)} m/s² · TF: ${n2Mag.toFixed(3)} m/s² · Drift: ${storyDrift.toFixed(3)} mm / d_lim: ${DISP_LIMIT_MM} mm`;
     sbEl.textContent=`Monitoring · Trigger: ${TRIGGER_ACCEL} m/s² · Baseline: ${BASELINE_ACCEL} m/s²`;
   }
 }
@@ -1603,6 +1681,7 @@ function applyThreshold(){
   BASELINE_ACCEL   =parseFloat(document.getElementById('baselineAccel').value)||0.6;
   BUFFER_DURATION  =parseInt(document.getElementById('bufferDuration').value)||5;
   DISP_LIMIT_MM    =parseFloat(document.getElementById('dispLimit').value)||12.5;
+
   document.getElementById('driftLimDisp').textContent=DISP_LIMIT_MM.toFixed(1);
   const fb=document.getElementById('configApplied');fb.classList.add('show');setTimeout(()=>fb.classList.remove('show'),2500);
   toast(`Config applied · Trigger: ${TRIGGER_ACCEL} m/s² · Baseline: ${BASELINE_ACCEL} m/s² · d_lim: ${DISP_LIMIT_MM} mm`,'success');
@@ -1633,9 +1712,10 @@ function clearAllData(){
   chartRing.node2 = makeChartRing();
   nodes.node1.latestVD = {}; nodes.node2.latestVD = {};
   SignalProcessor.resetNode('node1');SignalProcessor.resetNode('node2');
-  _triggerHits=0;_baselineHits=0;_normalRing=[];_dynamicBase=0.6;_dynamicTrigger=1.0;
+  _triggerHits=0;_baselineHits=0;
   nodes.node1.peakDispMmSinceEvent=0;nodes.node2.peakDispMmSinceEvent=0;
-  storyRing.t.length=0;storyRing.n1.length=0;storyRing.n2.length=0;storyRing.lim.length=0;
+  storyRing.ep.length=0;storyRing.t.length=0;storyRing.n1.length=0;storyRing.n2.length=0;storyRing.lim.length=0;
+  try{localStorage.removeItem(CHART_LS_KEY);localStorage.removeItem(STORY_LS_KEY);}catch(e){}
   if(storyDispChart){storyDispChart.data.labels=[];storyDispChart.data.datasets.forEach(d=>d.data=[]);storyDispChart.update();}
   updateHistoryUI();updateStoryEventTable();
   toast('All data cleared','info');
