@@ -1095,6 +1095,7 @@ requestAnimationFrame(()=>{
      node2Chart,node2ChartX,node2ChartY,node2ChartZ,node2ChartVel,node2ChartDisp,storyDispChart]
     .forEach(ch=>ch&&ch.resize());
     restoreChartRingsFromLS();
+    restoreConfigFromLS();
       },250);
 });
 
@@ -1223,6 +1224,7 @@ function hydrateEvent(raw){return{...raw,timestamp:new Date(raw.timestamp),endTi
 // ══════════════════════════════════════════════════════════════
 const CHART_LS_KEY  = 'eri_chartRing_v1';
 const STORY_LS_KEY  = 'eri_storyRing_v1';
+const CONFIG_LS_KEY = 'eri_config_v1';
 const LS_MAX_AGE_MS = 60 * 60 * 1000; // keep up to 1 hour of graph history
 const LS_SAVE_INTERVAL_MS = 10000;    // throttle: save at most every 10 s
 let _lsSaveTimer = null;
@@ -1312,6 +1314,44 @@ function restoreChartRingsFromLS() {
       }
     }
   } catch(e) { console.warn('[LS] storyRing restore failed:', e); }
+}
+
+// ── Config persistence ─────────────────────────────────────────────────────
+function saveConfigToLS(){
+  try{
+    localStorage.setItem(CONFIG_LS_KEY, JSON.stringify({
+      triggerAccel  : document.getElementById('triggerAccel').value,
+      baselineAccel : document.getElementById('baselineAccel').value,
+      dispLimit     : document.getElementById('dispLimit').value,
+      bufferDuration: document.getElementById('bufferDuration').value,
+      structureName : document.getElementById('structureName').value,
+      savedAt       : Date.now()
+    }));
+  }catch(e){ console.warn('[LS] config save failed:',e); }
+}
+function restoreConfigFromLS(){
+  try{
+    const raw=localStorage.getItem(CONFIG_LS_KEY);
+    if(!raw) return;
+    const cfg=JSON.parse(raw);
+    if(cfg.triggerAccel  !==undefined && cfg.triggerAccel  !=='') document.getElementById('triggerAccel').value  =cfg.triggerAccel;
+    if(cfg.baselineAccel !==undefined && cfg.baselineAccel !=='') document.getElementById('baselineAccel').value =cfg.baselineAccel;
+    if(cfg.dispLimit     !==undefined && cfg.dispLimit     !=='') document.getElementById('dispLimit').value      =cfg.dispLimit;
+    if(cfg.bufferDuration!==undefined && cfg.bufferDuration!=='') document.getElementById('bufferDuration').value =cfg.bufferDuration;
+    if(cfg.structureName !==undefined && cfg.structureName !=='') document.getElementById('structureName').value  =cfg.structureName;
+    // Re-apply the restored values into runtime variables silently (no toast)
+    const _ta=parseFloat(cfg.triggerAccel),_ba=parseFloat(cfg.baselineAccel),_dl=parseFloat(cfg.dispLimit);
+    if(!isNaN(_ta)) TRIGGER_ACCEL  =_ta;
+    if(!isNaN(_ba)) BASELINE_ACCEL =_ba;
+    if(!isNaN(_dl)){
+      DISP_LIMIT_MM=_dl;
+      const dlEl=document.getElementById('driftLimDisp');
+      if(dlEl) dlEl.textContent=_dl.toFixed(1);
+    }
+    const _buf=parseInt(cfg.bufferDuration);
+    if(!isNaN(_buf)) BUFFER_DURATION=_buf;
+    console.log('[LS] config restored:',cfg);
+  }catch(e){ console.warn('[LS] config restore failed:',e); }
 }
 
 // Save immediately on page close/hide so the most recent second isn't lost
@@ -1704,6 +1744,7 @@ function applyThreshold(){
   document.getElementById('driftLimDisp').textContent=DISP_LIMIT_MM.toFixed(1);
   const fb=document.getElementById('configApplied');fb.classList.add('show');setTimeout(()=>fb.classList.remove('show'),2500);
   toast(`Config applied · Trigger: ${TRIGGER_ACCEL} m/s² · Baseline: ${BASELINE_ACCEL} m/s² · d_lim: ${DISP_LIMIT_MM} mm`,'success');
+  saveConfigToLS();
   checkStructureStatus();
 }
 
